@@ -30,17 +30,27 @@ configurations = [
         ]
 
 
-# functions
 def parse_args():
-    global Mc, M
+    global Mc, Nstep_eql, Nstep_run
     parser = argparse.ArgumentParser()
-    parser.add_argument('--Mc', type=int, help="control volume")
+    parser.add_argument('--Mc', type=int, default=3, help="control volume")
+    parser.add_argument('--Nstep_eql', type=int, help="control volume")
+    parser.add_argument('--Nstep_run', type=int, help="control volume")
     args = parser.parse_args()
     if args.Mc is not None:
         Mc = args.Mc
     assert Mc <= M
+    if args.Nstep_eql is not None:
+        Nstep_eql = args.Nstep_eql
+    if args.Nstep_run is not None:
+        Nstep_run = args.Nstep_run
+
+parse_args()
+print('# M = %d Mc = %d' % (M, Mc))
+print('# Nstep_eql = %d Nstep_run = %d' % (Nstep_eql, Nstep_run))
 
 
+# functions
 @jit
 def cal_N(lattice):
     return np.sum(lattice)
@@ -113,19 +123,22 @@ def destruct(lattice):
 
 @jit
 def main():
-    parse_args()
-    lattice = np.random.randint(2, size=M)
-
-    # equilibrate
-    for istep in range(Nstep_eql):
-        MC_step(lattice)
-
-    # collect data
     conf_static = np.zeros(int(2**M))
-    for istep in range(Nstep_run):
-        MC_step(lattice)
-        conf_static[configurations.index(lattice.tolist())] += 1
-    conf_static /= Nstep_run
+    for i in range(10):
+        lattice = np.random.randint(2, size=M)
+
+        # equilibrate
+        for istep in range(Nstep_eql):
+            MC_step(lattice)
+
+        # collect data
+        conf_static_i = np.zeros(int(2**M))
+        for istep in range(Nstep_run):
+            MC_step(lattice)
+            conf_static_i[configurations.index(lattice.tolist())] += 1
+        conf_static_i /= Nstep_run
+        conf_static += conf_static_i
+    conf_static /= 10
 
     # post-processing
     rho = np.zeros(M)
@@ -140,13 +153,15 @@ def main():
         avg_betaU += k * -beta * cal_U(lattice)
 
     # output
-    print('# M = %d, Mc = %d' % (M, Mc))
     print('# configuration statistics: ')
+    print('')
     for x in conf_static:
-        print(x)
+        print('%.6f' % x)
+    print('')
     print('# rho dist:')
     for x in rho:
-        print(x)
+        print('%.6f' % x)
+    print('')
     print('# <N> = %.6f' % avgN)
     print('# <N2> = %.6f' % avgN2)
     print('# <-beta*U> = %.6f' % avg_betaU)
