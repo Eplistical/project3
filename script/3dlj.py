@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 # config
 kT = 1.0
 beta = 1.0 / kT
-mu = -3.2
+mu = -2.5
 V = 512
 L = V**(1.0 / 3.0)
 Vc = V
@@ -34,6 +34,7 @@ class LJ_with_cutoff(object):
         self.U_rc = self.LJ_raw(self.rc)
 
     def __call__(self, r):
+        return 0.0
         if r <= self.rc:
             return self.LJ_raw(r) - self.U_rc
         else:
@@ -106,7 +107,7 @@ def rand_in_Vc():
 
 #@jit
 def MC_step(swarm):
-    swarm = shuffle(swarm)
+    #swarm = shuffle(swarm)
     if np.random.rand() < 0.5:
         swarm = create(swarm)
     else:
@@ -173,7 +174,7 @@ def destruct(swarm):
             if i != idx:
                 dU -= LJ(la.norm(ptcl - swarm[idx]))
         # make decision
-        prob = np.exp(-beta * dU - beta * mu) / Nc * Vc
+        prob = np.exp(-beta * dU - beta * mu) * Nc / Vc
         if np.random.rand() < prob:
             del swarm[idx]
     return swarm
@@ -187,12 +188,13 @@ def main():
 
         # equilibrate
         for istep in range(Nstep_eql):
-            print(istep)
             swarm = MC_step(swarm)
 
         # collect data
+        rho = 0.0
         for istep in range(Nstep_run):
-            print(istep)
+            rho += cal_N(swarm) / V
+            print(istep, rho / (istep + 1))
             swarm = MC_step(swarm)
 
     # output
