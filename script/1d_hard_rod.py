@@ -48,7 +48,7 @@ print('# Nstep_eql = %d, Nstep_run = %d, Nrun = %d' % (Nstep_eql, Nstep_run, Nru
 
 
 # functions
-#@jit
+@jit
 def cal_U(rods):
     for i, xi in enumerate(rods):
         for j, xj in enumerate(rods):
@@ -57,17 +57,17 @@ def cal_U(rods):
     return 0.0
 
 
-#@jit
+@jit
 def cal_N(rods):
     return rods.size
 
 
-#@jit
+@jit
 def cal_Nc(rods):
     return np.where(np.logical_and(rods >= A, rods <= B))[0].size
 
 
-#@jit
+@jit
 def MC_step(rods):
     rods = shuffle(rods)
     if np.random.rand() < 0.5:
@@ -77,29 +77,26 @@ def MC_step(rods):
     return rods
 
 
-#@jit
+@jit
 def shuffle(rods):
-    U0 = cal_U(rods)
-    new_rods = np.copy(rods)
-    for i, xi in enumerate(rods):
-        trial_rods = np.copy(rods)
+    N = cal_N(rods)
+    for i in range(N):
+        U0 = cal_U(rods)
         dx = (2 * np.random.rand() - 1.0) * dxmax
-        # hard wall
-        if xi + dx < 0.0:
-            trial_rods[i] = -(xi + dx)
-        elif xi + dx > Lx:
-            trial_rods[i] = 2 * Lx - (xi + dx)
-        else:
-            trial_rods[i] = xi + dx
-        dU = cal_U(trial_rods) - U0
+        lastxi = rods[i]
+        rods[i] += dx
+        if rods[i] < 0.0:
+            rods[i] *= -1
+        elif rods[i] > Lx:
+            rods[i] = 2 * Lx - rods[i]
+        dU = cal_U(rods) - U0
         prob = np.exp(-beta * dU)
-        if np.random.rand() < prob:
-            new_rods[i] = trial_rods[i]
-        rods[i] = xi
-    return new_rods
+        if np.random.rand() >= prob:
+            rods[i] = lastxi
+    return rods
 
 
-#@jit
+@jit
 def create(rods):
     N = cal_N(rods)
     Nc = cal_Nc(rods)
@@ -115,7 +112,7 @@ def create(rods):
         return rods
 
 
-#@jit
+@jit
 def destruct(rods):
     Nc = cal_Nc(rods)
     if Nc > 0:
