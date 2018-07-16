@@ -18,20 +18,23 @@ dxmax = 0.5
 
 Nstep_run = int(10e6)
 Nstep_eql = int(5e5)
-Nrun = 10
+Nrun = 1
 
 
 def parse_args():
-    global B, Nstep_eql, Nstep_run, Nrun
+    global A, B, Nstep_eql, Nstep_run, Nrun
     parser = argparse.ArgumentParser()
-    parser.add_argument('--B', type=float, help="control volume")
+    parser.add_argument('--A', type=float, help="control volume begin")
+    parser.add_argument('--B', type=float, help="control volume end")
     parser.add_argument('--Nrun', type=int, help="run times")
     parser.add_argument('--Nstep_eql', type=int, help="Nstep for equilibrium")
     parser.add_argument('--Nstep_run', type=int, help="Nstep for running")
     args = parser.parse_args()
+    if args.A is not None:
+        A = args.A
     if args.B is not None:
         B = args.B
-    assert B <= Lx
+    assert 0 <= A and A <= B and B <= Lx
     if args.Nstep_eql is not None:
         Nstep_eql = args.Nstep_eql
     if args.Nstep_run is not None:
