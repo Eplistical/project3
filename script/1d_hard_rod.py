@@ -18,15 +18,13 @@ dxmax = 0.5
 
 Nstep_run = int(10e6)
 Nstep_eql = int(5e5)
-Nrun = 1
 
 
 def parse_args():
-    global A, B, Nstep_eql, Nstep_run, Nrun
+    global A, B, Nstep_eql, Nstep_run
     parser = argparse.ArgumentParser()
     parser.add_argument('--A', type=float, help="control volume begin")
     parser.add_argument('--B', type=float, help="control volume end")
-    parser.add_argument('--Nrun', type=int, help="run times")
     parser.add_argument('--Nstep_eql', type=int, help="Nstep for equilibrium")
     parser.add_argument('--Nstep_run', type=int, help="Nstep for running")
     args = parser.parse_args()
@@ -39,12 +37,10 @@ def parse_args():
         Nstep_eql = args.Nstep_eql
     if args.Nstep_run is not None:
         Nstep_run = args.Nstep_run
-    if args.Nrun is not None:
-        Nrun = args.Nrun
 
 parse_args()
 print('# Lx = %.2f, A = %.2f, B = %.2f' %(Lx, A, B))
-print('# Nstep_eql = %d, Nstep_run = %d, Nrun = %d' % (Nstep_eql, Nstep_run, Nrun))
+print('# Nstep_eql = %d, Nstep_run = %d' % (Nstep_eql, Nstep_run,))
 
 
 # functions
@@ -131,29 +127,29 @@ def main():
     sumN2 = 0.0
     sumrho = np.zeros(int(Lx / 0.05))
 
-    for irun in range(Nrun):
-        rods = np.array([Lx / 2.0])
+    rods = np.array([Lx / 2.0])
 
-        # equilibrate
-        for istep in range(Nstep_eql):
-            rods = MC_step(rods)
+    # equilibrate
+    for istep in range(Nstep_eql):
+        rods = MC_step(rods)
 
-        # collect data
-        for istep in range(Nstep_run):
-            rods = MC_step(rods)
-            for xi in rods:
-                sumrho[int(xi / 0.05)] += 1 / 0.05
-            sumN += rods.size
-            sumN2 += rods.size**2
+    # collect data
+    for istep in range(Nstep_run):
+        rods = MC_step(rods)
+        for xi in rods:
+            sumrho[int(xi / 0.05)] += 1 / 0.05
+        sumN += rods.size
+        sumN2 += rods.size**2
 
     # output
-    print('')
+    print('#' * 32)
     print('# rho dist:')
-    for x in sumrho:
-        print('%.6f' % (x / Nstep_run / Nrun, ))
+    for x in sumrho / Nstep_run:
+        print(x, end='\t')
     print('')
-    print('# <N> = %.6f' % (sumN / Nstep_run / Nrun, ))
-    print('# <N2> = %.6f' % (sumN2 / Nstep_run / Nrun, ))
+    print('# <N> = %.6f' % (sumN / Nstep_run, ))
+    print('# <N2> = %.6f' % (sumN2 / Nstep_run, ))
+    print('#' * 32)
 
 
 
