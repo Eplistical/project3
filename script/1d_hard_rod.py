@@ -48,7 +48,7 @@ print('# Nstep_eql = %d, Nstep_run = %d, Nrun = %d' % (Nstep_eql, Nstep_run, Nru
 
 
 # functions
-@jit
+#@jit
 def cal_U(rods):
     for i, xi in enumerate(rods):
         for j, xj in enumerate(rods):
@@ -57,17 +57,17 @@ def cal_U(rods):
     return 0.0
 
 
-@jit
+#@jit
 def cal_N(rods):
     return rods.size
 
 
-@jit
+#@jit
 def cal_Nc(rods):
     return np.where(np.logical_and(rods >= A, rods <= B))[0].size
 
 
-@jit
+#@jit
 def MC_step(rods):
     rods = shuffle(rods)
     if np.random.rand() < 0.5:
@@ -77,7 +77,7 @@ def MC_step(rods):
     return rods
 
 
-@jit
+#@jit
 def shuffle(rods):
     U0 = cal_U(rods)
     new_rods = np.copy(rods)
@@ -94,12 +94,12 @@ def shuffle(rods):
         dU = cal_U(trial_rods) - U0
         prob = np.exp(-beta * dU)
         if np.random.rand() < prob:
-            new_rods[i] = rods[i]
+            new_rods[i] = trial_rods[i]
         rods[i] = xi
     return new_rods
 
 
-@jit
+#@jit
 def create(rods):
     N = cal_N(rods)
     Nc = cal_Nc(rods)
@@ -115,7 +115,7 @@ def create(rods):
         return rods
 
 
-@jit
+#@jit
 def destruct(rods):
     Nc = cal_Nc(rods)
     if Nc > 0:
@@ -135,7 +135,6 @@ def main():
     sumrho = np.zeros(int(Lx / 0.05))
 
     for irun in range(Nrun):
-        print(irun)
         rods = np.array([Lx / 2.0])
 
         # equilibrate
