@@ -33,9 +33,9 @@ configurations = [
 def parse_args():
     global Mc, Nstep_eql, Nstep_run
     parser = argparse.ArgumentParser()
-    parser.add_argument('--Mc', type=int, default=3, help="control volume")
-    parser.add_argument('--Nstep_eql', type=int, help="control volume")
-    parser.add_argument('--Nstep_run', type=int, help="control volume")
+    parser.add_argument('--Mc', type=int, help="control volume")
+    parser.add_argument('--Nstep_eql', type=int, help="Nstep for equilibrium")
+    parser.add_argument('--Nstep_run', type=int, help="Nstep for running")
     args = parser.parse_args()
     if args.Mc is not None:
         Mc = args.Mc
