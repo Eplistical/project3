@@ -4,6 +4,7 @@
 #include "misc/vector.hpp"
 #include "misc/randomer.hpp"
 #include "misc/ioer.hpp"
+#include "misc/timer.hpp"
 
 using namespace std;
 using ptcl_t = LJ_Particle_3D;
@@ -74,7 +75,7 @@ struct LJ_with_cutoff {
         double U_rc;
 } LJ;
 
-
+// helper functions
 size_t cal_N(const vector<ptcl_t>& swarm) {
     return swarm.size();
 }
@@ -120,6 +121,20 @@ ptcl_t rand_in_Vc() {
             );
 }
 
+
+double cal_U(const vector<ptcl_t>& swarm) {
+    const size_t N(cal_N(swarm));
+    double U(0.0);
+    for (size_t i(0); i < N - 1; ++i) {
+        for (size_t j(i + 1); j < N; ++j) {
+            U += LJ(swarm[i], swarm[j]);
+        }
+    }
+    return U;
+}
+
+
+// main functions
 void shuffle(vector<ptcl_t>& swarm) {
     const size_t N(cal_N(swarm));
     for (size_t i(0); i < N; ++i) {
@@ -200,8 +215,9 @@ void MC_step(vector<ptcl_t>& swarm) {
 }
 
 
-
 int main(int argc, char** argv) {
+    timer::tic();
+
     // init
     vector<ptcl_t> swarm {
         ptcl_t(
@@ -214,17 +230,21 @@ int main(int argc, char** argv) {
 
     // equilibrate
     for (size_t istep(0); istep < para.Nstep_eql; ++istep) {
-        ioer::tabout(istep);
         MC_step(swarm);
     }
 
     // run
     double rho(0.0);
+    double U_per_ptcl(0.0);
     for (size_t istep(0); istep < para.Nstep_run; ++istep) {
         rho += cal_N(swarm) / para.V;
-        ioer::tabout(istep, rho / (istep + 1));
+        U_per_ptcl += cal_U(swarm) / cal_N(swarm);
         MC_step(swarm);
     }
+
+    // output
+    ioer::tabout(rho / para.Nstep_run, U_per_ptcl / para.Nstep_run);
+    ioer::info("# ", timer::toc());
 
     return 0;
 }
