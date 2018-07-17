@@ -29,9 +29,9 @@ namespace {
             }
 
         public:
-            const size_t dim;
-            const double mass, mass_inv;
-            const double kT, kT_inv;
+            size_t dim;
+            double mass, mass_inv;
+            double kT, kT_inv;
             std::vector<double> x, v;
 
         private:
