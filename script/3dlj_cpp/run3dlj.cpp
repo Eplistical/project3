@@ -5,7 +5,9 @@
 #include "misc/randomer.hpp"
 #include "misc/ioer.hpp"
 #include "misc/timer.hpp"
+#include "boost/program_options.hpp"
 
+namespace po = boost::program_options;
 using namespace std;
 using ptcl_t = LJ_Particle_3D;
 
@@ -21,8 +23,8 @@ struct Para {
     double Lc = pow(Vc, 1.0 / 3.0);
 
     double dxmax = 1.0;
-    int Nstep_eql = 1e5;
-    int Nstep_run = 3e5;
+    size_t Nstep_eql = 1e5;
+    size_t Nstep_run = 7e5;
 } para;
 
 // potential
@@ -47,12 +49,15 @@ struct LJ_with_cutoff {
                 }
                 assert(dx[i] <= 0.5 * para.L and dx[i] >= -0.5 * para.L);
 
-                if (abs(dx[i]) > rc) {
-                    return 0.0;
-                }
-                else {
-                    r += dx[i] * dx[i];
-                }
+                /*
+                   if (abs(dx[i]) > rc) {
+                   return 0.0;
+                   }
+                   else {
+                   r += dx[i] * dx[i];
+                   }
+                   */
+                r += dx[i] * dx[i];
             }
 
             r = sqrt(r);
@@ -60,7 +65,7 @@ struct LJ_with_cutoff {
                 return 0.0;
             }
             else {
-                return LJ_raw(r) - U_rc;
+                return LJ_raw(r); // - U_rc;
             }
         }
 
@@ -74,6 +79,35 @@ struct LJ_with_cutoff {
         double rc;
         double U_rc;
 } LJ;
+
+// arg parser
+
+bool argparse(int argc, char** argv, bool output_flag = true)
+{
+    po::options_description desc("Allowed options");
+    desc.add_options()
+        ("help", "produce help message")
+        ("Vc", po::value<double>(&para.Vc), "Vc as a multiple of V")
+        ("Nstep_eql", po::value<size_t>(&para.Nstep_eql), "time step for equilibrating the system")
+        ("Nstep_run", po::value<size_t>(&para.Nstep_run), "time step for collecting data")
+        ("dxmax", po::value<double>(&para.dxmax), "max MC step displacement on each direction")
+        ("mu", po::value<double>(&para.mu), "chemical potential")
+        ;   
+    po::variables_map vm; 
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);    
+
+    if (vm.count("help")) {
+        if (output_flag) {
+            ioer::info(desc);
+        }
+        return false;
+    }
+    if (vm.count("Vc")) {
+        para.Lc = pow(para.Vc, 1.0 / 3.0);
+    }
+    return true;
+}
 
 // helper functions
 size_t cal_N(const vector<ptcl_t>& swarm) {
@@ -205,7 +239,7 @@ void destruct(vector<ptcl_t>& swarm) {
 }
 
 void MC_step(vector<ptcl_t>& swarm) {
-    shuffle(swarm);
+    //shuffle(swarm);
     if (randomer::rand() < 0.5) {
         create(swarm);
     }
@@ -216,6 +250,13 @@ void MC_step(vector<ptcl_t>& swarm) {
 
 
 int main(int argc, char** argv) {
+    // args
+    if (argparse(argc, argv) == false) {
+        return 0;
+    }
+    ioer::info("# V = ", para.V, " Vc = ", para.Vc, " mu = ", para.mu);
+    ioer::info("# Nstep_eql = ", para.Nstep_eql, " Nstep_run = ", para.Nstep_run);
+
     timer::tic();
 
     // init
@@ -230,6 +271,7 @@ int main(int argc, char** argv) {
 
     // equilibrate
     for (size_t istep(0); istep < para.Nstep_eql; ++istep) {
+        //ioer::tabout(istep);
         MC_step(swarm);
     }
 
@@ -239,6 +281,7 @@ int main(int argc, char** argv) {
     for (size_t istep(0); istep < para.Nstep_run; ++istep) {
         rho += cal_N(swarm) / para.V;
         U_per_ptcl += cal_U(swarm) / cal_N(swarm);
+        //ioer::tabout(istep, rho / (istep + 1), U_per_ptcl / (istep + 1));
         MC_step(swarm);
     }
 
