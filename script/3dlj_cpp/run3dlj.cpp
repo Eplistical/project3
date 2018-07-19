@@ -21,6 +21,7 @@ struct Para {
     double L = pow(V, 1.0 / 3.0); 
     double Vc = V;
     double Lc = pow(Vc, 1.0 / 3.0);
+    size_t K = 6;
 
     double dxmax = 1.0;
     size_t Nstep_eql = 1e5;
@@ -206,7 +207,13 @@ double cal_U(const vector<ptcl_t>& swarm) {
 
 
 // main functions
+void evolve(vector<ptcl_t>& swarm) {
+    // evlove particles with Molecular Dynamics
+}
+
+
 void shuffle(vector<ptcl_t>& swarm) {
+    // shuffle particles with Monte Carlo
     const size_t N(cal_N(swarm));
     for (size_t i(0); i < N; ++i) {
         vector<double> dx = randomer::vrand(3, -para.dxmax, para.dxmax);
@@ -275,13 +282,26 @@ void destruct(vector<ptcl_t>& swarm) {
     }
 }
 
-void MC_step(vector<ptcl_t>& swarm) {
+void MC_step(size_t istep, vector<ptcl_t>& swarm) {
     shuffle(swarm);
     if (randomer::rand() < 0.5) {
         create(swarm);
     }
     else {
         destruct(swarm);
+    }
+}
+
+void MD_step(size_t istep, vector<ptcl_t>& swarm) {
+    evolve(swarm);
+    // create/destruct every K steps
+    if (istep % para.K == 0) {
+        if (randomer::rand() < 0.5) {
+            create(swarm);
+        }
+        else {
+            destruct(swarm);
+        }
     }
 }
 
@@ -308,7 +328,7 @@ int main(int argc, char** argv) {
     // equilibrate
     for (size_t istep(0); istep < para.Nstep_eql; ++istep) {
         //ioer::tabout(istep);
-        MC_step(swarm);
+        MC_step(istep, swarm);
     }
 
     // run
@@ -318,7 +338,7 @@ int main(int argc, char** argv) {
         rho += cal_N(swarm) / para.V;
         U_per_ptcl += cal_U(swarm) / cal_N(swarm);
         //ioer::tabout(istep, rho / (istep + 1), U_per_ptcl / (istep + 1));
-        MC_step(swarm);
+        MC_step(istep, swarm);
     }
 
     // output
