@@ -49,15 +49,12 @@ struct LJ_with_cutoff {
                 }
                 assert(dx[i] <= 0.5 * para.L and dx[i] >= -0.5 * para.L);
 
-                /*
-                   if (abs(dx[i]) > rc) {
-                   return 0.0;
-                   }
-                   else {
-                   r += dx[i] * dx[i];
-                   }
-                   */
-                r += dx[i] * dx[i];
+                if (abs(dx[i]) > rc) {
+                    return 0.0;
+                }
+                else {
+                    r += dx[i] * dx[i];
+                }
             }
 
             r = sqrt(r);
@@ -65,7 +62,7 @@ struct LJ_with_cutoff {
                 return 0.0;
             }
             else {
-                return LJ_raw(r); // - U_rc;
+                return LJ_raw(r) - U_rc;
             }
         }
 
@@ -104,6 +101,8 @@ bool argparse(int argc, char** argv, bool output_flag = true)
         return false;
     }
     if (vm.count("Vc")) {
+        assert(para.Vc <= 1.0 and para.Vc > 0.0);
+        para.Vc *= para.V;
         para.Lc = pow(para.Vc, 1.0 / 3.0);
     }
     return true;
@@ -239,7 +238,7 @@ void destruct(vector<ptcl_t>& swarm) {
 }
 
 void MC_step(vector<ptcl_t>& swarm) {
-    //shuffle(swarm);
+    shuffle(swarm);
     if (randomer::rand() < 0.5) {
         create(swarm);
     }
