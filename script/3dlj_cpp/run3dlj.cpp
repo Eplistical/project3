@@ -13,6 +13,7 @@ using ptcl_t = LJ_Particle_3D;
 
 // config
 struct Para {
+    // basic
     double kT = 1.0;
     double beta = 1.0 / kT;
     double mass = 1.0;
@@ -21,11 +22,14 @@ struct Para {
     double L = pow(V, 1.0 / 3.0); 
     double Vc = V;
     double Lc = pow(Vc, 1.0 / 3.0);
-    size_t K = 6;
-
-    double dxmax = 1.0;
+    // propagation
     size_t Nstep_eql = 1e5;
     size_t Nstep_run = 7e5;
+    // MC related
+    double dxmax = 1.0;
+    // MD related
+    size_t K = 6;
+    double dt = 0.005;
 } para;
 
 // potential
@@ -124,10 +128,12 @@ bool argparse(int argc, char** argv, bool output_flag = true)
     desc.add_options()
         ("help", "produce help message")
         ("Vc", po::value<double>(&para.Vc), "Vc as a multiple of V")
+        ("mu", po::value<double>(&para.mu), "chemical potential")
+        ("K", po::value<double>(&para.K), "MD parameter K")
+        ("dt", po::value<double>(&para.dt), "MD time step")
+        ("dxmax", po::value<double>(&para.dxmax), "MC max displacement on each direction")
         ("Nstep_eql", po::value<size_t>(&para.Nstep_eql), "time step for equilibrating the system")
         ("Nstep_run", po::value<size_t>(&para.Nstep_run), "time step for collecting data")
-        ("dxmax", po::value<double>(&para.dxmax), "max MC step displacement on each direction")
-        ("mu", po::value<double>(&para.mu), "chemical potential")
         ;   
     po::variables_map vm; 
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -246,6 +252,7 @@ void shuffle(vector<ptcl_t>& swarm) {
 }
 
 void create(vector<ptcl_t>& swarm) {
+    // create a new particle in Vc
     ptcl_t new_ptcl(rand_in_Vc());
     // calc dU
     const size_t N(cal_N(swarm));
@@ -262,6 +269,7 @@ void create(vector<ptcl_t>& swarm) {
 }
 
 void destruct(vector<ptcl_t>& swarm) {
+    // destcruct an existing particle in Vc
     vector<size_t> idx_in_Vc(get_idx_in_Vc(swarm));
     if (not idx_in_Vc.empty()) {
         const size_t Nc(idx_in_Vc.size());
@@ -283,6 +291,7 @@ void destruct(vector<ptcl_t>& swarm) {
 }
 
 void MC_step(size_t istep, vector<ptcl_t>& swarm) {
+    // single MC step
     shuffle(swarm);
     if (randomer::rand() < 0.5) {
         create(swarm);
@@ -293,8 +302,8 @@ void MC_step(size_t istep, vector<ptcl_t>& swarm) {
 }
 
 void MD_step(size_t istep, vector<ptcl_t>& swarm) {
+    // a single MD step
     evolve(swarm);
-    // create/destruct every K steps
     if (istep % para.K == 0) {
         if (randomer::rand() < 0.5) {
             create(swarm);
