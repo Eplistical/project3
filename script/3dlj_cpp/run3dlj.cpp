@@ -66,10 +66,48 @@ struct LJ_with_cutoff {
             }
         }
 
+        vector<double> force(const ptcl_t& p1, const ptcl_t& p2) {
+            // return force F12, i.e. force on 1 from 2
+            vector<double> dx(p1.x - p2.x);
+            double r(0.0);
+            for (int i(0); i < 3; ++i) {
+                // minimum image
+                if (dx[i] > 0.5 * para.L) {
+                    dx[i] = para.L - dx[i];
+                } 
+                else if (dx[i] < -0.5 * para.L) {
+                    dx[i] = para.L + dx[i];
+                }
+                assert(dx[i] <= 0.5 * para.L and dx[i] >= -0.5 * para.L);
+
+                if (abs(dx[i]) > rc) {
+                    return vector<double>(3, 0.0);
+                }
+                else {
+                    r += dx[i] * dx[i];
+                }
+            }
+
+            r = sqrt(r);
+            if (r > rc) {
+                return vector<double>(3, 0.0);
+            }
+            else {
+                double F(LJ_force_raw(r));
+                return F / r * dx;
+            }
+        }
+
     public:
         double LJ_raw(double r) {
             double tmp(pow(r, -6));
             return 4.0 * tmp * (tmp - 1.0);
+        }
+
+        double LJ_force_raw(double r) {
+            // return magnitude of force
+            double tmp(pow(r, -6));
+            return 24.0 / r * tmp * (2.0 * tmp - 1.0);
         }
 
     public:
@@ -257,7 +295,6 @@ int main(int argc, char** argv) {
     ioer::info("# Nstep_eql = ", para.Nstep_eql, " Nstep_run = ", para.Nstep_run);
 
     timer::tic();
-
     // init
     vector<ptcl_t> swarm {
         ptcl_t(
