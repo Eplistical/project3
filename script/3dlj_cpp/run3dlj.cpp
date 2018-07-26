@@ -14,12 +14,15 @@ using ptcl_t = LJ_Particle_3D;
 // config
 struct Para {
     // basic
-    double kT = 1.0;
+    const double V = 120.0;
+    const double L = pow(V, 1.0 / 3.0); 
+    const double rc = 3.0;
+
+    double kT = 0.9;
     double beta = 1.0 / kT;
     double mass = 1.0;
-    double mu = -3.2;
-    double V = 512.0;
-    double L = pow(V, 1.0 / 3.0); 
+    double mu = -2.5;
+
     double Vc = V;
     double Lc = pow(Vc, 1.0 / 3.0);
     // propagation
@@ -33,92 +36,72 @@ struct Para {
 } para;
 
 // potential
-struct LJ_with_cutoff {
+struct LJ_shifted {
     public:
-        LJ_with_cutoff() noexcept {
-            rc = 2.5;
-            U_rc = LJ_raw(rc);
+        LJ_shifted(double RC, double LBOX) noexcept 
+            : rc(RC), Lbox(LBOX)
+        {
+            // -- basic parameters -- //
+            rc2 = rc * rc;
+            Vbox = Lbox * Lbox * Lbox;
+
+            // -- shifted energy -- //
+            U_rc = 4.0 * (pow(rc, -12) - pow(rc, -6));
+
+            
+            // -- long range correction -- //
+            
+            // U_LRC0 = U_LRC / N**2
+            U_LRC0 = 8.0 / 9.0 * M_PI / Vbox * (pow(rc, -9) - 3.0 * pow(rc, -3)); 
+            // P_LRC0 = P_LRC / N**2
+            P_LRC0 = 32.0 / 9.0 * M_PI / Vbox / Vbox * (pow(rc, -9) - 1.5 * pow(rc, -3));
+            // mu_LRC0 = mu_LRC / N
+            mu_LRC0 = 16.0 / 9.0 * M_PI / Vbox * (pow(rc, -9) - 3.0 * pow(rc, -3));
         }
 
     public:
         double operator()(const ptcl_t& p1, const ptcl_t& p2) {
+            /**
+             * calculate shifted potential, virial, and force between particles 1 & 2
+             * return shifted potential
+             * store virial and force in public variables
+             */
             vector<double> dx(p1.x - p2.x);
-            double r(0.0);
-            for (int i(0); i < 3; ++i) {
-                // minimum image
-                if (dx[i] > 0.5 * para.L) {
-                    dx[i] = para.L - dx[i];
-                } 
-                else if (dx[i] < -0.5 * para.L) {
-                    dx[i] = para.L + dx[i];
-                }
-                assert(dx[i] <= 0.5 * para.L and dx[i] >= -0.5 * para.L);
+            double r2(0.0);
+            for (auto& dxi : dx) {
+                // min imag
+                dxi -= Lbox * round(dxi / Lbox);
+                assert(dxi <= 0.5 * Lbox and dxi >= -0.5 * Lbox);
 
-                if (abs(dx[i]) > rc) {
-                    return 0.0;
-                }
-                else {
-                    r += dx[i] * dx[i];
+                r2 += dxi * dxi;
+                if (r2 > rc2) {
+                    U_shifted = 0.0;
+                    virial = 0.0;
+                    force.assign(3, 0.0);
+                    return U_shifted;
                 }
             }
 
-            r = sqrt(r);
-            if (r > rc) {
-                return 0.0;
-            }
-            else {
-                return LJ_raw(r) - U_rc;
-            }
-        }
+            // calc U_shifted, virial & force
+            const double r6(r2 * r2 * r2);
+            const double r6_inv(1.0 / r6);
+            U_shifted = 4.0 * r6_inv * (r6_inv - 1.0) - U_rc;
+            virial = 24.0 * r6_inv * (2.0 * r6_inv - 1.0);
+            force = virial / r2 * dx;
 
-        vector<double> force(const ptcl_t& p1, const ptcl_t& p2) {
-            // return force F12, i.e. force on 1 from 2
-            vector<double> dx(p1.x - p2.x);
-            double r(0.0);
-            for (int i(0); i < 3; ++i) {
-                // minimum image
-                if (dx[i] > 0.5 * para.L) {
-                    dx[i] = para.L - dx[i];
-                } 
-                else if (dx[i] < -0.5 * para.L) {
-                    dx[i] = para.L + dx[i];
-                }
-                assert(dx[i] <= 0.5 * para.L and dx[i] >= -0.5 * para.L);
-
-                if (abs(dx[i]) > rc) {
-                    return vector<double>(3, 0.0);
-                }
-                else {
-                    r += dx[i] * dx[i];
-                }
-            }
-
-            r = sqrt(r);
-            if (r > rc) {
-                return vector<double>(3, 0.0);
-            }
-            else {
-                double F(LJ_force_raw(r));
-                return F / r * dx;
-            }
+            return U_shifted;
         }
 
     public:
-        double LJ_raw(double r) {
-            double tmp(pow(r, -6));
-            return 4.0 * tmp * (tmp - 1.0);
-        }
-
-        double LJ_force_raw(double r) {
-            // return magnitude of force
-            double tmp(pow(r, -6));
-            return 24.0 / r * tmp * (2.0 * tmp - 1.0);
-        }
+        double U_shifted;
+        double virial;
+        vector<double> force;
 
     public:
-        double rc;
-        double U_rc;
-} LJ;
+        double rc, rc2, U_rc;
+        double Lbox, Vbox;
+        double U_LRC0, P_LRC0, mu_LRC0;
+} LJ(para.rc, para.L);
 
 // arg parser
 
@@ -129,7 +112,7 @@ bool argparse(int argc, char** argv, bool output_flag = true)
         ("help", "produce help message")
         ("Vc", po::value<double>(&para.Vc), "Vc as a multiple of V")
         ("mu", po::value<double>(&para.mu), "chemical potential")
-        ("K", po::value<double>(&para.K), "MD parameter K")
+        ("K", po::value<size_t>(&para.K), "MD parameter K")
         ("dt", po::value<double>(&para.dt), "MD time step")
         ("dxmax", po::value<double>(&para.dxmax), "MC max displacement on each direction")
         ("Nstep_eql", po::value<size_t>(&para.Nstep_eql), "time step for equilibrating the system")
@@ -199,6 +182,17 @@ ptcl_t rand_in_Vc() {
             );
 }
 
+void boundary_condition(vector<double>& x) {
+    for (int k(0); k < 3; ++k) {
+        if (x[k] < 0.0) {
+            x[k] += para.L;
+        }
+        else if (x[k] > para.L) {
+            x[k] -= para.L;
+        }
+        assert(x[k] >= 0.0 and x[k] <= para.L);
+    }
+}
 
 double cal_U(const vector<ptcl_t>& swarm) {
     const size_t N(cal_N(swarm));
@@ -211,31 +205,58 @@ double cal_U(const vector<ptcl_t>& swarm) {
     return U;
 }
 
+vector< vector<double> > cal_force(const vector<ptcl_t>& swarm) {
+    const size_t N(cal_N(swarm));
+    vector< vector<double> > force(N, vector<double>(3, 0.0));
+    for (size_t i(0); i < N - 1; ++i) {
+        for (size_t j(i + 1); j < N; ++j) {
+            LJ(swarm[i], swarm[j]);
+            force[i] = force[i] + LJ.force;
+            force[j] = force[j] - LJ.force;
+        }
+    }
+    return force;
+}
 
 // main functions
 void evolve(vector<ptcl_t>& swarm) {
     // evlove particles with Molecular Dynamics
+    const size_t N(cal_N(swarm));
+    vector< vector<double> > force;
+
+    // 
+    force = cal_force(swarm);
+    for (size_t i(0); i < N; ++i) {
+        // adjust v
+        swarm[i].v = swarm[i].v + para.dt * swarm[i].mass_inv * force[i];
+        // move w/ boundary condition
+        swarm[i].x = swarm[i].x + para.dt * swarm[i].v;
+        boundary_condition(swarm[i].x);
+    }
+    // velocity verlet
+    force = cal_force(swarm);
+    for (size_t i(0); i < N; ++i) {
+        swarm[i].v = swarm[i].v + 0.5 * para.dt * swarm[i].mass_inv * force[i];
+        // move w/ boundary condition
+        swarm[i].x = swarm[i].x + para.dt * swarm[i].v;
+        boundary_condition(swarm[i].x);
+    }
+    force = cal_force(swarm);
+    for (size_t i(0); i < N; ++i) {
+        swarm[i].v = swarm[i].v + 0.5 * para.dt * swarm[i].mass_inv * force[i];
+    }
 }
 
-
-void shuffle(vector<ptcl_t>& swarm) {
+size_t shuffle(vector<ptcl_t>& swarm) {
     // shuffle particles with Monte Carlo
+    size_t Naccept(0);
     const size_t N(cal_N(swarm));
     for (size_t i(0); i < N; ++i) {
         vector<double> dx = randomer::vrand(3, -para.dxmax, para.dxmax);
         ptcl_t last_ptcl(swarm[i]);
-
-        // move w/ periodic condition
+        // move w/ boundary condition
         swarm[i].x = swarm[i].x + dx;
-        for (int k(0); k < 3; ++k) {
-            if (swarm[i].x[k] < 0.0) {
-                swarm[i].x[k] += para.L;
-            }
-            else if (swarm[i].x[k] > para.L) {
-                swarm[i].x[k] -= para.L;
-            }
-            assert(swarm[i].x[k] >= 0.0 and swarm[i].x[k] <= para.L);
-        }
+        boundary_condition(swarm[i].x);
         // calc U
         double dU(0.0);
         for (size_t j(0); j < N; ++j) {
@@ -248,7 +269,11 @@ void shuffle(vector<ptcl_t>& swarm) {
         if (randomer::rand() >= prob) {
             swarm[i].x = last_ptcl.x;
         }
+        else {
+            Naccept += 1;
+        }
     }
+    return Naccept;
 }
 
 void create(vector<ptcl_t>& swarm) {
@@ -264,6 +289,7 @@ void create(vector<ptcl_t>& swarm) {
     const size_t Nc(cal_Nc(swarm));
     const double prob(exp(-para.beta * (dU - para.mu)) * para.Vc / (Nc + 1));
     if (randomer::rand() < prob) {
+        ioer::info("c!");
         swarm.push_back(new_ptcl);
     }
 }
@@ -285,20 +311,38 @@ void destruct(vector<ptcl_t>& swarm) {
         // make decision
         const double prob(exp(-para.beta * (dU + para.mu)) * Nc / para.Vc);
         if (randomer::rand() < prob) {
+            // adjust velocities for the rest particles
+            vector<double> v_del(swarm[idx].v);
+            vector<double> v_abs_sum(3, 0.0);
+            for (int i(0); i < N; ++i) {
+                if (i != idx) {
+                    v_abs_sum = v_abs_sum + abs(swarm[i].v);
+                }
+            }
+            for (int i(0); i < N; ++i) {
+                if (i != idx) {
+                    swarm[i].v = swarm[i].v + v_del * abs(swarm[i].v) / v_abs_sum;
+                }
+            }
+            // remove the particle
+            ioer::info("d!");
             swarm.erase(swarm.begin() + idx);
         }
     }
 }
 
-void MC_step(size_t istep, vector<ptcl_t>& swarm) {
+size_t MC_step(size_t istep, vector<ptcl_t>& swarm) {
     // single MC step
-    shuffle(swarm);
+    size_t Naccept = shuffle(swarm);
+    /*
     if (randomer::rand() < 0.5) {
         create(swarm);
     }
     else {
         destruct(swarm);
     }
+    */
+    return Naccept;
 }
 
 void MD_step(size_t istep, vector<ptcl_t>& swarm) {
@@ -314,6 +358,21 @@ void MD_step(size_t istep, vector<ptcl_t>& swarm) {
     }
 }
 
+vector<ptcl_t> init_swarm(int N) {
+    vector<ptcl_t> swarm;
+    swarm.reserve(N);
+    for (int i(0); i < N; ++i) {
+        swarm.push_back(
+                ptcl_t(
+                    randomer::vrand(3, 0.0, para.L),
+                    randomer::maxwell_dist(para.mass, para.kT),
+                    para.mass,
+                    para.kT
+                    )
+                );
+    }
+    return swarm;
+}
 
 int main(int argc, char** argv) {
     // args
@@ -325,6 +384,8 @@ int main(int argc, char** argv) {
 
     timer::tic();
     // init
+    vector<ptcl_t> swarm(init_swarm(108));
+    /*
     vector<ptcl_t> swarm {
         ptcl_t(
                 vector<double>(3, 0.5 * para.L),
@@ -333,25 +394,35 @@ int main(int argc, char** argv) {
                 para.kT
               )
     };
+    */
 
     // equilibrate
     for (size_t istep(0); istep < para.Nstep_eql; ++istep) {
-        //ioer::tabout(istep);
+        ioer::tabout(istep, cal_N(swarm) / para.V);
         MC_step(istep, swarm);
+        //MD_step(istep, swarm);
     }
 
-    // run
+    // sampling
     double rho(0.0);
     double U_per_ptcl(0.0);
+    double Utot(0.0);
+    size_t Naccept(0);
     for (size_t istep(0); istep < para.Nstep_run; ++istep) {
-        rho += cal_N(swarm) / para.V;
-        U_per_ptcl += cal_U(swarm) / cal_N(swarm);
+        //rho += cal_N(swarm) / para.V;
+        //U_per_ptcl += cal_U(swarm) / cal_N(swarm);
+        size_t N(cal_N(swarm));
+        Utot += cal_U(swarm) + LJ.U_LRC0 * N * N;
         //ioer::tabout(istep, rho / (istep + 1), U_per_ptcl / (istep + 1));
-        MC_step(istep, swarm);
+        ioer::tabout(istep, Utot / (istep + 1), Utot / (istep + 1) / N);
+
+        Naccept += MC_step(istep, swarm);
+        //MD_step(istep, swarm);
     }
 
     // output
-    ioer::tabout(rho / para.Nstep_run, U_per_ptcl / para.Nstep_run);
+    //ioer::tabout(rho / para.Nstep_run, U_per_ptcl / para.Nstep_run);
+    ioer::info("# acc ratio = ", static_cast<double>(Naccept) / cal_N(swarm) / para.Nstep_run);
     ioer::info("# ", timer::toc());
 
     return 0;
