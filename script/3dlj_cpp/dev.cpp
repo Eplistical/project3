@@ -4,7 +4,7 @@
 #include "misc/vector.hpp"
 #include "misc/randomer.hpp"
 #include "misc/ioer.hpp"
-#include "misc/timer.hpp"
+#include "boost/timer/timer.hpp"
 #include "boost/program_options.hpp"
 
 namespace po = boost::program_options;
@@ -14,11 +14,12 @@ using ptcl_t = LJ_Particle_3D;
 // config
 struct Para {
     // basic
-    const double V = 120.0;
+    const double V = 512.0;
     const double L = pow(V, 1.0 / 3.0); 
-    const double rc = 3.0;
+    const double rc = 2.5;
+    bool prepinit = true;
 
-    double kT = 0.9;
+    double kT = 1.0;
     double beta = 1.0 / kT;
     double mass = 1.0;
     double mu = -2.5;
@@ -26,13 +27,33 @@ struct Para {
     double Vc = V;
     double Lc = pow(Vc, 1.0 / 3.0);
     // propagation
-    size_t Nstep_eql = 1e5;
-    size_t Nstep_run = 7e5;
+    size_t Nstep_eql = 4e3;
+    size_t Nstep_run = 6e3;
     // MC related
     double dxmax = 1.0;
     // MD related
     size_t K = 6;
     double dt = 0.005;
+
+    // control
+    size_t random_seed;
+
+    // show para
+    void show(){
+        ioer::keyval()
+            ("# V", V)
+            ("# L", L)
+            ("# rc", rc)
+            ("# kT", kT)
+            ("# mu", mu)
+            ("# mass", mass)
+            ("# Nstep_eql", Nstep_eql)
+            ("# Nstep_run", Nstep_run)
+            ("# dxmax", dxmax)
+            ("# prepinit", prepinit)
+            ("# random_seed", random_seed)
+            ;
+    }
 } para;
 
 // potential
@@ -51,12 +72,12 @@ struct LJ_shifted {
             
             // -- long range correction -- //
             
+            const double irc3(1.0 / (rc * rc * rc));
+            const double irc9(irc3 * irc3 * irc3);
             // U_LRC0 = U_LRC / N**2
-            U_LRC0 = 8.0 / 9.0 * M_PI / Vbox * (pow(rc, -9) - 3.0 * pow(rc, -3)); 
+            U_LRC0 = 8.0 / 9.0 * M_PI / Vbox * (irc9 - 3.0 * irc3); 
             // P_LRC0 = P_LRC / N**2
-            P_LRC0 = 32.0 / 9.0 * M_PI / Vbox / Vbox * (pow(rc, -9) - 1.5 * pow(rc, -3));
-            // mu_LRC0 = mu_LRC / N
-            mu_LRC0 = 16.0 / 9.0 * M_PI / Vbox * (pow(rc, -9) - 3.0 * pow(rc, -3));
+            P_LRC0 = 32.0 / 9.0 * M_PI / Vbox / Vbox * (irc9 - 1.5 * irc3);
         }
 
     public:
@@ -100,7 +121,7 @@ struct LJ_shifted {
     public:
         double rc, rc2, U_rc;
         double Lbox, Vbox;
-        double U_LRC0, P_LRC0, mu_LRC0;
+        double U_LRC0, P_LRC0;
 } LJ(para.rc, para.L);
 
 // arg parser
@@ -219,12 +240,12 @@ vector< vector<double> > cal_force(const vector<ptcl_t>& swarm) {
 }
 
 // main functions
+/*
 void evolve(vector<ptcl_t>& swarm) {
     // evlove particles with Molecular Dynamics
     const size_t N(cal_N(swarm));
     vector< vector<double> > force;
 
-    // 
     force = cal_force(swarm);
     for (size_t i(0); i < N; ++i) {
         // adjust v
@@ -246,6 +267,7 @@ void evolve(vector<ptcl_t>& swarm) {
         swarm[i].v = swarm[i].v + 0.5 * para.dt * swarm[i].mass_inv * force[i];
     }
 }
+*/
 
 size_t shuffle(vector<ptcl_t>& swarm) {
     // shuffle particles with Monte Carlo
@@ -289,7 +311,7 @@ void create(vector<ptcl_t>& swarm) {
     const size_t Nc(cal_Nc(swarm));
     const double prob(exp(-para.beta * (dU - para.mu)) * para.Vc / (Nc + 1));
     if (randomer::rand() < prob) {
-        ioer::info("c!");
+        //ioer::info("c!");
         swarm.push_back(new_ptcl);
     }
 }
@@ -325,7 +347,7 @@ void destruct(vector<ptcl_t>& swarm) {
                 }
             }
             // remove the particle
-            ioer::info("d!");
+            //ioer::info("d!");
             swarm.erase(swarm.begin() + idx);
         }
     }
@@ -334,17 +356,16 @@ void destruct(vector<ptcl_t>& swarm) {
 size_t MC_step(size_t istep, vector<ptcl_t>& swarm) {
     // single MC step
     size_t Naccept = shuffle(swarm);
-    /*
     if (randomer::rand() < 0.5) {
         create(swarm);
     }
     else {
         destruct(swarm);
     }
-    */
     return Naccept;
 }
 
+/*
 void MD_step(size_t istep, vector<ptcl_t>& swarm) {
     // a single MD step
     evolve(swarm);
@@ -357,6 +378,7 @@ void MD_step(size_t istep, vector<ptcl_t>& swarm) {
         }
     }
 }
+*/
 
 vector<ptcl_t> init_swarm(int N) {
     vector<ptcl_t> swarm;
@@ -374,17 +396,12 @@ vector<ptcl_t> init_swarm(int N) {
     return swarm;
 }
 
-int main(int argc, char** argv) {
-    // args
-    if (argparse(argc, argv) == false) {
-        return 0;
-    }
+void run() {
     ioer::info("# V = ", para.V, " Vc = ", para.Vc, " mu = ", para.mu);
     ioer::info("# Nstep_eql = ", para.Nstep_eql, " Nstep_run = ", para.Nstep_run);
 
-    timer::tic();
     // init
-    vector<ptcl_t> swarm(init_swarm(108));
+    vector<ptcl_t> swarm(init_swarm(1));
     /*
     vector<ptcl_t> swarm {
         ptcl_t(
@@ -404,26 +421,37 @@ int main(int argc, char** argv) {
     }
 
     // sampling
-    double rho(0.0);
+    double rhosum(0.0);
     double U_per_ptcl(0.0);
-    double Utot(0.0);
     size_t Naccept(0);
+    size_t Nsamp(0);
     for (size_t istep(0); istep < para.Nstep_run; ++istep) {
-        //rho += cal_N(swarm) / para.V;
-        //U_per_ptcl += cal_U(swarm) / cal_N(swarm);
         size_t N(cal_N(swarm));
-        Utot += cal_U(swarm) + LJ.U_LRC0 * N * N;
-        //ioer::tabout(istep, rho / (istep + 1), U_per_ptcl / (istep + 1));
-        ioer::tabout(istep, Utot / (istep + 1), Utot / (istep + 1) / N);
 
-        Naccept += MC_step(istep, swarm);
-        //MD_step(istep, swarm);
+        Nsamp += 1;
+        rhosum += N / para.V;
+        U_per_ptcl += cal_U(swarm) / N  + LJ.U_LRC0 * N;
+        ioer::tabout(istep, rhosum / Nsamp, U_per_ptcl / Nsamp);
+
+        MC_step(istep, swarm);
     }
 
     // output
     //ioer::tabout(rho / para.Nstep_run, U_per_ptcl / para.Nstep_run);
-    ioer::info("# acc ratio = ", static_cast<double>(Naccept) / cal_N(swarm) / para.Nstep_run);
-    ioer::info("# ", timer::toc());
+    //ioer::info("# acc ratio = ", static_cast<double>(Naccept) / cal_N(swarm) / para.Nstep_run);
+}
 
+int main(int argc, char** argv) {
+    if (argparse(argc, argv) == false) {
+        return 0;
+    }
+    else {
+        para.show();
+        randomer::seed(para.random_seed);
+
+        boost::timer::cpu_timer cpu_timer;
+        run();
+        ioer::info("# ", cpu_timer.format(4));
+    }
     return 0;
 }
