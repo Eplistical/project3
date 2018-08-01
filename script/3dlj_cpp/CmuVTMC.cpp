@@ -13,6 +13,7 @@ namespace po = boost::program_options;
 using namespace std;
 
 // config
+
 struct Para {
     // basic
     double V = 512;
@@ -36,8 +37,9 @@ struct Para {
     uint32_t random_seed = 0;
 
     public:
-    void show() {
-        ioer::keyval()
+    void show(ioer::output_t& out) {
+        out.info("# --- CONFIG PARAMETERS --- ");
+        out.keyval()
             ("# V", V)
             ("# L", L)
             ("# rc", rc)
@@ -89,7 +91,7 @@ bool argparse(int argc, char** argv, bool output_flag = true)
     return true;
 }
 
-// functions
+// configuration I/O functions
 
 void read_conf(vector<double>& x, const string& conffile) 
 {
@@ -110,6 +112,8 @@ inline void write_conf(const vector<double>& x, const string& conffile)
     out.create_dataset("x", x);
     out.close();
 }
+
+// energy functions
 
 inline void raw_pair_energy(const double r2, double& U, double& W) 
 {
@@ -225,6 +229,35 @@ void potout(const vector<double>& x, const uint32_t ofs,
     dW = -dW - (2.0 * static_cast<double>(N) - 1.0) * WLRC0;
 }
 
+void tail_correction(const double rc, const double V,
+        double& Urc, double& ULRC0, double& WLRC0) 
+{
+    // calcualte tail correction energy
+    ULRC0 = 0.0;
+    WLRC0 = 0.0;
+    Urc = 0.0;
+
+    const bool lrc_flag(false);
+    const bool shift_flag(false);
+
+    if (lrc_flag) {
+        // long range correction
+        double irc3, irc9;
+        irc3 = pow(1.0 / rc, 3);
+        irc9 = irc3 * irc3 * irc3;
+        ULRC0 = 8.0 / 9.0 * M_PI / V * (irc9 - 3.0 * irc3);
+        WLRC0 = 32.0 / 9.0 * M_PI / V * (irc9 - 1.5 * irc3);
+    }
+
+    if (shift_flag) {
+        // shifted energy
+        double Wrc, rc2(rc * rc);
+        raw_pair_energy(rc2, Urc, Wrc);
+    }
+}
+
+// configuration move functions
+
 inline bool decide(double x) {
     // generate a prob by e^-x
     if (x > 75.0) 
@@ -322,51 +355,43 @@ bool destruct(vector<double>& x, double& U, double& W,
     return false;
 }
 
+// main functions
+
 void muVTMC() 
 {
     // output config
     ioer::output_t out("");
     out.set_precision(4);
 
-    // long range correction
-    double sr3, sr9, ULRC0(0.0), WLRC0(0.0);
-    sr3 = pow(1.0 / para.rc, 3);
-    sr9 = sr3 * sr3 * sr3;
-    /*
-    ULRC0 = 8.0 / 9.0 * M_PI / para.V * (sr9 - 3.0 * sr3);
-    WLRC0 = 32.0 / 9.0 * M_PI / para.V * (sr9 - 1.5 * sr3);
-    */
+    // show para
+    para.show(out);
+    out.info("# --- PROGRAM BEGINS --- ");
+    out.info("# exe name: muVTMC ");
 
-    // shifted energy
-    double Urc(0.0), Wrc(0.0);
-    raw_pair_energy(para.rc * para.rc, Urc, Wrc);
-    //Urc = 0.0;
+    // tail corrections
+    double ULRC0, WLRC0, Urc;
+    tail_correction(para.rc, para.V, Urc, ULRC0, WLRC0);
+    out.info("# tail correction: Urc = ", Urc, " ULRC0 = ", ULRC0, " WLRC0 = ", WLRC0);
 
-
-    // prepare/load init configuration
+    // init configuration
     vector<double> x;
+    double U, W;
     if (para.prepinit) {
         x = randomer::vrand(3 * para.N0, -0.5 * para.L, 0.5 * para.L);
     }
     else {
         read_conf(x, para.conffile);
     }
-    out.info("# init N = ", x.size() / 3);
-
-    // calc init U & W
-    double U, W;
     all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W);
-    out.info("# init U = ", U, " init W = ", W);
+    out.info("# init configuration: N = ", x.size() / 3, "init U = ", U, " init W = ", W);
 
     // main MC part
     uint32_t N;
     uint32_t Naccept(0), Nmove(0);
     double Usum(0.0), Psum(0.0), rhosum(0.0);
     uint32_t Nsamp(0);
-
-    // loop over steps
     double Unow, Pnow, rhonow;
-    out.info("# start looping ... ");
+    out.info("# start MC looping ... ");
     out.tabout("# Nsamp", "rho", "U/N", "P", "<rho>", "<U/N>", "<P>");
     for (uint32_t istep(0); istep < para.Nstep; ++istep) {
 
@@ -406,7 +431,12 @@ void muVTMC()
             write_conf(x, para.conffile);
         }
     } 
-    out.tabout(Nsamp, rhonow, Unow, Pnow);
+    out.tabout(Nsamp, 
+            rhonow, Unow, Pnow,
+            rhosum / Nsamp,
+            Usum / Nsamp,
+            Psum / Nsamp
+            );
     write_conf(x, para.conffile);
 
     //final output
@@ -417,8 +447,10 @@ void muVTMC()
     out.tabout("# acc ratio = ", static_cast<double>(Naccept) / Nmove);
     out.drawline('\n', 1);
 
-} // main
+    out.info("# --- PROGRAM END --- ");
+} 
 
+// main
 
 int main(int argc, char** argv) {
 
@@ -426,7 +458,6 @@ int main(int argc, char** argv) {
         return 0;
     }
     else {
-        para.show();
         randomer::seed(para.random_seed);
 
         boost::timer::cpu_timer cpu_timer;
