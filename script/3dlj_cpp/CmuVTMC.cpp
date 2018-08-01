@@ -127,7 +127,7 @@ inline void raw_pair_energy(const double r2, double& U, double& W)
 
 inline void pair_energy(const double* x1, const double* x2,
         const double rc, const double Urc, const double L,
-        double& U, double& W)
+        double& U, double& W, bool& invin)
 {
     // calc pair energy between x1 & x2
     // subject to min imag & cut-off
@@ -141,10 +141,12 @@ inline void pair_energy(const double* x1, const double* x2,
     }
 
     if (r2 < rc2) {
+        invin = true;
         raw_pair_energy(r2, U, W);
         U -= Urc;
     }
     else {
+        invin = false;
         U = 0.0;
         W = 0.0;
     }
@@ -152,9 +154,11 @@ inline void pair_energy(const double* x1, const double* x2,
 
 inline void one_energy(const vector<double>& x, const uint32_t ofs, 
         const double rc, const double Urc, const double L,
-        double& U, double& W) 
+        double& U, double& W, uint32_t& Nvin) 
 {
     // calc U & W for a given atom w/ other atoms
+    bool invin;
+    Nvin = 0;
     U = 0.0;
     W = 0.0;
     if (not x.empty()) {
@@ -162,9 +166,12 @@ inline void one_energy(const vector<double>& x, const uint32_t ofs,
         double Uij, Wij;
         for (uint32_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
             if (ofs_i != ofs) {
-                pair_energy(&x[ofs], &x[ofs_i], rc, Urc, L, Uij, Wij);
-                U += Uij;
-                W += Wij;
+                pair_energy(&x[ofs], &x[ofs_i], rc, Urc, L, Uij, Wij, invin);
+                if (invin) {
+                    Nvin += 1;
+                    U += Uij;
+                    W += Wij;
+                }
             }
         }
     }
@@ -173,9 +180,11 @@ inline void one_energy(const vector<double>& x, const uint32_t ofs,
 void all_energy(vector<double>& x, 
         const double rc, const double Urc, const double L, 
         const double ULRC0, const double WLRC0, 
-        double& U, double& W)
+        double& U, double& W, uint32_t& Nvin)
 {
     // calc total U & W for a given x
+    bool invin;
+    Nvin = 0;
     U = 0.0;
     W = 0.0;
     if (not x.empty()) {
@@ -185,9 +194,12 @@ void all_energy(vector<double>& x,
         double Uij, Wij;
         for (uint32_t ofs_i(0); ofs_i < _3N_3; ofs_i += 3) {
             for (uint32_t ofs_j(ofs_i + 3); ofs_j < _3N; ofs_j += 3) {
-                pair_energy(&x[ofs_i], &x[ofs_j], rc, Urc, L, Uij, Wij);
-                U += Uij;
-                W += Wij;
+                pair_energy(&x[ofs_i], &x[ofs_j], rc, Urc, L, Uij, Wij, invin);
+                if (invin) {
+                    Nvin += 1;
+                    U += Uij;
+                    W += Wij;
+                }
             }
         }
         U += ULRC0 * N * N;
@@ -204,16 +216,25 @@ void potin(const vector<double>& newx, const vector<double>& x,
     // calc dU & dW for a new particle newx
     const uint32_t _3N(x.size());
     const uint32_t N(_3N / 3);
+    uint32_t Nvin;
+    bool invin;
 
-    dU = (2.0 * static_cast<double>(N) + 1.0) * ULRC0;
-    dW = (2.0 * static_cast<double>(N) + 1.0) * WLRC0;
+    Nvin = 0;
+    dU = 0.0;
+    dW = 0.0;
 
     double Uij, Wij;
     for (uint32_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
-        pair_energy(&newx[0], &x[ofs_i], rc, Urc, L, Uij, Wij);
-        dU += Uij;
-        dW += Wij;
+        pair_energy(&newx[0], &x[ofs_i], rc, Urc, L, Uij, Wij, invin);
+        if (invin) {
+            Nvin += 1;
+            dU += Uij;
+            dW += Wij;
+        }
     }
+
+    dU += (2.0 * static_cast<double>(N) + 1.0) * ULRC0;
+    dW += (2.0 * static_cast<double>(N) + 1.0) * WLRC0;
 }
 
 void potout(const vector<double>& x, const uint32_t ofs,
@@ -224,7 +245,14 @@ void potout(const vector<double>& x, const uint32_t ofs,
     // calc dU & dW for removing an existing particle x[ofs]
     assert(not x.empty());
     const uint32_t N(x.size() / 3);
-    one_energy(x, ofs, rc, Urc, L, dU, dW);
+    uint32_t Nvin;
+
+    Nvin = 0;
+    dU = 0.0;
+    dW = 0.0;
+
+    one_energy(x, ofs, rc, Urc, L, dU, dW, Nvin);
+
     dU = -dU - (2.0 * static_cast<double>(N) - 1.0) * ULRC0;
     dW = -dW - (2.0 * static_cast<double>(N) - 1.0) * WLRC0;
 }
@@ -238,7 +266,7 @@ void tail_correction(const double rc, const double V,
     Urc = 0.0;
 
     const bool lrc_flag(false);
-    const bool shift_flag(false);
+    const bool shift_flag(true); // truncated + shifted potential
 
     if (lrc_flag) {
         // long range correction
@@ -270,44 +298,45 @@ inline bool decide(double x) {
         return false;
 }
 
-uint32_t shuffle(vector<double>& x, double& U, double& W,
+bool shuffle(vector<double>& x, const uint32_t ofs,
+        double& U, double& W,
         const double kT, const double dxmax, const double L,
         const double rc, const double Urc)
 {
-    // shuffle atoms, MC
+    // shuffle the particle x[ofs:ofs+3] w/ MC algorithm
     uint32_t _3N = x.size();
-    uint32_t N = _3N / 3;
-    uint32_t Naccept(0);
+    assert (ofs % 3 == 0 and ofs < _3N);
 
+    uint32_t Nvinold, Nvinnew;
     double Uold, Wold, Unew, Wnew;
-    double dU, dW, beta_dU;
+    double dU, dW;
     vector<double> oldx(3);
-    for (uint32_t ofs(0); ofs < _3N; ofs += 3) {
-        one_energy(x, ofs, rc, Urc, L, Uold, Wold);
-        for (int k(0); k < 3; ++k) {
-            oldx[k] = x[ofs + k];
-            x[ofs + k] += randomer::rand(-dxmax, dxmax);
-            x[ofs + k] -= L * round(x[ofs + k] / L); // periodic condition
-        }
-        one_energy(x, ofs, rc, Urc, L, Unew, Wnew);
+    one_energy(x, ofs, rc, Urc, L, Uold, Wold, Nvinold);
 
-        dU = Unew - Uold;
-        dW = Wnew - Wold;
-        beta_dU = dU / kT;
+    for (int k(0); k < 3; ++k) {
+        oldx[k] = x[ofs + k];
+        x[ofs + k] += randomer::rand(-dxmax, dxmax);
+        x[ofs + k] -= L * round(x[ofs + k] / L); // periodic condition
+    }
+    
+    one_energy(x, ofs, rc, Urc, L, Unew, Wnew, Nvinnew);
 
-        if (decide(beta_dU)) {
-            U += dU;
-            W += dW;
-            Naccept += 1;
-        }
-        else {
-            copy(oldx.begin(), oldx.end(), x.begin() + ofs);
-        }
-    } 
-    return Naccept;
+    dU = Unew - Uold;
+    dW = Wnew - Wold;
+
+    if (decide(dU / kT)) {
+        U += dU;
+        W += dW;
+        return true;
+    }
+    else {
+        copy(oldx.begin(), oldx.end(), x.begin() + ofs);
+        return false;
+    }
 }
 
-bool create(vector<double>& x, double& U, double& W,
+bool create(vector<double>& x, const vector<double>& newx,
+        double& U, double& W,
         const double rc, const double Urc,
         const double L, const double V,
         const double kT, const double mu,
@@ -317,13 +346,12 @@ bool create(vector<double>& x, double& U, double& W,
     uint32_t N(_3N / 3);
     double dU, dW;
     double dCB;
-    vector<double> newx(randomer::vrand(3, -0.5 * L, 0.5 * L));
     potin(newx, x, rc, Urc, L, ULRC0, WLRC0, dU, dW);
 
     dCB = dU / kT - mu / kT  - log(V / (N + 1));
     if (decide(dCB)) {
         x.resize(_3N + 3);
-        copy(newx.begin(), newx.end(), x.end() - 3);
+        copy(newx.begin(), newx.begin() + 3, x.end() - 3);
         U += dU;
         W += dW;
         return true;
@@ -331,15 +359,17 @@ bool create(vector<double>& x, double& U, double& W,
     return false;
 }
 
-bool destruct(vector<double>& x, double& U, double& W,
+bool destruct(vector<double>& x, const uint32_t ofs,
+        double& U, double& W,
         const double rc, const double Urc,
         const double L, const double V,
         const double kT, const double mu,
         const double ULRC0, const double WLRC0)
 {
     uint32_t _3N(x.size());
+    assert(ofs % 3 == 0 and ofs < _3N);
+
     uint32_t N(_3N / 3);
-    uint32_t ofs(randomer::choice(N) * 3);
     double dU, dW;
     double dDB;
     potout(x, ofs, rc, Urc, L, ULRC0, WLRC0, dU, dW);
@@ -376,36 +406,44 @@ void muVTMC()
     // init configuration
     vector<double> x;
     double U, W;
+    uint32_t Nvin;
     if (para.prepinit) {
         x = randomer::vrand(3 * para.N0, -0.5 * para.L, 0.5 * para.L);
     }
     else {
         read_conf(x, para.conffile);
     }
-    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W);
-    out.info("# init configuration: N = ", x.size() / 3, "init U = ", U, " init W = ", W);
+    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W, Nvin);
+    out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
 
     // main MC part
+    double randnum;
+    const double shuffle_frac(0.75), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     uint32_t N;
     uint32_t Naccept(0), Nmove(0);
     double Usum(0.0), Psum(0.0), rhosum(0.0);
     uint32_t Nsamp(0);
     double Unow, Pnow, rhonow;
     out.info("# start MC looping ... ");
+    out.info("# shuffle frac = ", shuffle_frac, " create frac = ", create_frac);
     out.tabout("# Nsamp", "rho", "U/N", "P", "<rho>", "<U/N>", "<P>");
     for (uint32_t istep(0); istep < para.Nstep; ++istep) {
-
-        // shuffle
-        Naccept += shuffle(x, U, W, para.kT, para.dxmax, para.L, para.rc, Urc);
         N = x.size() / 3;
-        Nmove += N;
-        // create / destruct
-        if (randomer::rand() < 0.5) {
-            create(x, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+
+        randnum = randomer::rand();
+        if (randnum < shuffle_frac) {
+            uint32_t ofs(randomer::choice(N) * 3);
+            Naccept += shuffle(x, ofs, U, W, para.kT, para.dxmax, para.L, para.rc, Urc);
+        }
+        else if (randnum < create_frac) {
+            vector<double> newx(randomer::vrand(3, -0.5 * para.L, 0.5 * para.L));
+            Naccept += create(x, newx, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
         }
         else {
-            destruct(x, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+            uint32_t ofs(randomer::choice(N) * 3);
+            Naccept += destruct(x, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
         }
+        Nmove += 1;
 
         // statistics
         Nsamp += 1;
