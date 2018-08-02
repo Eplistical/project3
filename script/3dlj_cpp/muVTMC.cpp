@@ -86,27 +86,30 @@ void muVTMC()
     const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     uint32_t N;
     uint32_t Naccept(0), Nmove(0);
-    double Usum(0.0), Psum(0.0), rhosum(0.0);
+    double Usum(0.0), Wsum(0.0), rhosum(0.0);
     uint32_t Nsamp(0);
-    double Unow, Pnow, rhonow;
     out.info("# start MC looping ... ");
     out.info("# shuffle frac = ", shuffle_frac, " create frac = ", create_frac);
-    out.tabout("# Nsamp", "rho", "U/N", "P", "<rho>", "<U/N>", "<P>");
+    out.tabout("# Nsamp", "<rho>", "<U>", "<P>");
     for (uint32_t istep(0); istep < para.Nstep; ++istep) {
         N = x.size() / 3;
 
         randnum = randomer::rand();
         if (randnum < shuffle_frac) {
-            uint32_t ofs(randomer::choice(N) * 3);
-            Naccept += shuffle(x, ofs, U, W, para.kT, para.dxmax, para.L, para.rc, Urc);
+            if (not x.empty()) {
+                uint32_t ofs(randomer::choice(N) * 3);
+                Naccept += shuffle(x, ofs, U, W, para.kT, para.dxmax, para.L, para.rc, Urc, ULRC0, WLRC0);
+            }
         }
         else if (randnum < create_frac) {
             vector<double> newx(randomer::vrand(3, -0.5 * para.L, 0.5 * para.L));
             Naccept += create(x, newx, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
         }
         else {
-            uint32_t ofs(randomer::choice(N) * 3);
-            Naccept += destruct(x, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+            if (not x.empty()) {
+                uint32_t ofs(randomer::choice(N) * 3);
+                Naccept += destruct(x, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+            }
         }
         Nmove += 1;
 
@@ -114,39 +117,42 @@ void muVTMC()
         Nsamp += 1;
         N = x.size() / 3;
         if (N > 0) {
-            rhonow = N / para.V;
-            Unow = U / N;
-            Pnow = N / para.V * para.kT + W / para.V;
-
-            rhosum += rhonow;
-            Usum += Unow;
-            Psum += Pnow;
+            rhosum += N / para.V;
+            Usum += U;
+            Wsum += W;
         }
         // output & save
         if (istep % para.Anastep == 0) {
             // print statistics & save configure
             out.tabout(Nsamp, 
-                    rhonow, Unow, Pnow,
                     rhosum / Nsamp,
-                    Usum / Nsamp,
-                    Psum / Nsamp
+                    Usum / Nsamp / para.V / (rhosum / Nsamp),
+                    rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V
                     );
             write_conf(x, para.conffile);
+
+            // assert tot U & W
+            double Utot, Wtot;
+            all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, Utot, Wtot);
+            assert(abs(Utot - U) / abs(U) < 1e-5);
+            assert(abs(Wtot - W) / abs(W) < 1e-5);
         }
     } 
     out.tabout(Nsamp, 
-            rhonow, Unow, Pnow,
             rhosum / Nsamp,
-            Usum / Nsamp,
-            Psum / Nsamp
+            Usum / Nsamp / para.V / (rhosum / Nsamp),
+            rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V
             );
     write_conf(x, para.conffile);
 
     //final output
+    const double avgrho(rhosum / Nsamp);
+    const double avgU(Usum / Nsamp);
+    const double avgW(Wsum / Nsamp);
     out.drawline('\n', 1);
-    out.tabout("# <rho> = ", rhosum / Nsamp);
-    out.tabout("# <U/N> = ", Usum / Nsamp);
-    out.tabout("# <p> = ", Psum / Nsamp);
+    out.tabout("# <rho> = ", avgrho);
+    out.tabout("# <U> = ", avgU / para.V / avgrho);
+    out.tabout("# <P> = ", avgrho * para.kT + avgW / para.V);
     out.tabout("# acc ratio = ", static_cast<double>(Naccept) / Nmove);
     out.drawline('\n', 1);
 

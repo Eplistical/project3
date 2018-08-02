@@ -46,7 +46,7 @@ inline void one_energy(const std::vector<double>& x, const uint32_t ofs,
         const double rc, const double Urc, const double L,
         double& U, double& W) 
 {
-    // calc U & W for a given atom w/ other atoms
+    // calc U & W for a given atom x[ofs] w/ other atoms
     U = 0.0;
     W = 0.0;
     if (not x.empty()) {
@@ -62,12 +62,12 @@ inline void one_energy(const std::vector<double>& x, const uint32_t ofs,
     }
 }
 
-void all_energy(std::vector<double>& x, 
+inline void all_energy(const std::vector<double>& x, 
         const double rc, const double Urc, const double L, 
         const double ULRC0, const double WLRC0, 
         double& U, double& W)
 {
-    // calc total U & W for a given x
+    // calc total U & W for a given configuration x
     U = 0.0;
     W = 0.0;
     if (not x.empty()) {
@@ -87,8 +87,7 @@ void all_energy(std::vector<double>& x,
     }
 }
 
-
-void potin(const std::vector<double>& newx, const std::vector<double>& x, 
+inline void potin(const std::vector<double>& x, const std::vector<double>& newx, 
         const double rc, const double Urc, const double L,
         const double ULRC0, const double WLRC0, 
         double& dU, double& dW)
@@ -107,11 +106,11 @@ void potin(const std::vector<double>& newx, const std::vector<double>& x,
         dW += Wij;
     }
 
-    dU += (2.0 * static_cast<double>(N) + 1.0) * ULRC0;
-    dW += (2.0 * static_cast<double>(N) + 1.0) * WLRC0;
+    dU += (2.0 * N + 1.0) * ULRC0;
+    dW += (2.0 * N + 1.0) * WLRC0;
 }
 
-void potout(const std::vector<double>& x, const uint32_t ofs,
+inline void potout(const std::vector<double>& x, const uint32_t ofs,
         const double rc, const double Urc, const double L,
         const double ULRC0, const double WLRC0, 
         double& dU, double& dW)
@@ -125,8 +124,8 @@ void potout(const std::vector<double>& x, const uint32_t ofs,
 
     one_energy(x, ofs, rc, Urc, L, dU, dW);
 
-    dU = -dU - (2.0 * static_cast<double>(N) - 1.0) * ULRC0;
-    dW = -dW - (2.0 * static_cast<double>(N) - 1.0) * WLRC0;
+    dU = -dU - (2.0 * N - 1.0) * ULRC0;
+    dW = -dW - (2.0 * N - 1.0) * WLRC0;
 }
 
 void tail_correction(const double rc, const double V, const std::string& LJmodel,
