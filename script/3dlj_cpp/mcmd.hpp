@@ -28,11 +28,10 @@ bool shuffle(std::vector<double>& x, const uint32_t ofs,
     uint32_t _3N = x.size();
     assert (ofs % 3 == 0 and ofs < _3N);
 
-    uint32_t Nvinold, Nvinnew;
     double Uold, Wold, Unew, Wnew;
     double dU, dW;
     std::vector<double> oldx(3);
-    one_energy(x, ofs, rc, Urc, L, Uold, Wold, Nvinold);
+    one_energy(x, ofs, rc, Urc, L, Uold, Wold);
 
     for (int k(0); k < 3; ++k) {
         oldx[k] = x[ofs + k];
@@ -40,7 +39,7 @@ bool shuffle(std::vector<double>& x, const uint32_t ofs,
         x[ofs + k] -= L * round(x[ofs + k] / L); // periodic condition
     }
     
-    one_energy(x, ofs, rc, Urc, L, Unew, Wnew, Nvinnew);
+    one_energy(x, ofs, rc, Urc, L, Unew, Wnew);
 
     dU = Unew - Uold;
     dW = Wnew - Wold;
@@ -67,6 +66,7 @@ bool create(std::vector<double>& x, const std::vector<double>& newx,
     uint32_t N(_3N / 3);
     double dU, dW;
     double dCB;
+
     potin(newx, x, rc, Urc, L, ULRC0, WLRC0, dU, dW);
 
     dCB = dU / kT - mu / kT  - log(V / (N + 1));
@@ -89,10 +89,10 @@ bool destruct(std::vector<double>& x, const uint32_t ofs,
 {
     uint32_t _3N(x.size());
     assert(ofs % 3 == 0 and ofs < _3N);
-
     uint32_t N(_3N / 3);
     double dU, dW;
     double dDB;
+
     potout(x, ofs, rc, Urc, L, ULRC0, WLRC0, dU, dW);
 
     dDB = dU / kT + mu / kT - log(N / V);

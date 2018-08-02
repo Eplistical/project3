@@ -34,6 +34,7 @@ struct Para {
     void show(ioer::output_t& out) {
         out.info("# --- CONFIG PARAMETERS --- ");
         out.keyval()
+            ("# LJmodel", LJmodel)
             ("# V", V)
             ("# L", L)
             ("# rc", rc)
