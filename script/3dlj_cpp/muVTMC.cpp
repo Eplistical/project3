@@ -154,7 +154,10 @@ void muVTMC()
     const double avgrho(rhosum / Nsamp);
     const double avgU(Usum / Nsamp);
     const double avgW(Wsum / Nsamp);
+
     out.drawline('\n', 1);
+    out.tabout("# kT = ", para.kT);
+    out.tabout("# mu = ", para.mu);
     out.tabout("# <rho> = ", avgrho);
     out.tabout("# <U> = ", avgU / para.V / avgrho);
     out.tabout("# <P> = ", avgrho * para.kT + avgW / para.V);

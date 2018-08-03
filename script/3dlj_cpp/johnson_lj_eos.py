@@ -127,16 +127,17 @@ def cal_A(rho, T):
 
     return A
 
-
 def cal_mu(rho, T):
     A = cal_A(rho, T)
     P = cal_P(rho, T)
-    return A + P / rho - T
-
+    mu_ex = A + P / rho - T
+    mu_0 = T * np.log(rho)
+    mu = mu_0 + mu_ex
+    return mu
 
 if len(sys.argv) > 2:
     try:
-        print("%10s%16s%16s%16s%16s" % ("T", "rho", "P", "U", "mu"))
+        print("%10s%16s%16s%16s%16s" % ("T", "rho", "U", "P", "mu"))
         i = 0
         while True:
             T = float(sys.argv[2*i+1])
@@ -144,7 +145,7 @@ if len(sys.argv) > 2:
             P = cal_P(rho,T)
             U = cal_U(rho,T)
             mu = cal_mu(rho, T)
-            print("%10.2f%16.8f%16.8f%16.8f%16.8f" % (T, rho, cal_P(rho, T), cal_U(rho, T), mu))
+            print("%10.2f%16.8f%16.8f%16.8f%16.8f" % (T, rho, U, P, mu))
             i += 1
     except:
         sys.exit()
