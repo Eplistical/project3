@@ -19,7 +19,12 @@ void read_conf(vector<double>& x, const string& conffile)
     uint64_t N;
     string program;
     in.read_attr("para", "N", N, "program", program);
-    in.read_dataset("x", x);
+    if (N > 0) {
+        in.read_dataset("x", x);
+    }
+    else {
+        x.resize(0);
+    }
     assert(N * 3 == x.size());
     assert(program == "muVTMC");
     in.close();
