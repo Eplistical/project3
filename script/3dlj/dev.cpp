@@ -42,30 +42,6 @@ inline void write_conf(const vector<double>& x, const string& conffile)
     out.close();
 }
 
-inline bool is_in_Vc(const double* x, const double Lc) {
-    // check if x[0:3] is in the control volume [-0.5*Lc, 0.5*Lc]
-    for (int k(0); k < 3; ++k) {
-        if (x[k] > 0.5 * Lc or x[k] < -0.5 * Lc) {
-            return false;
-        }
-    }
-    return true;
-}
-
-inline vector<double> get_Vc_idx(const vector<double>& x, const double Lc) {
-    // get indices for particles that are in the control colume
-    const uint64_t _3N(x.size());
-    const uint64_t N(_3N / 3);
-
-    vector<double> Vc_idx;
-    Vc_idx.reserve(N);
-    for (int i(0); i < N; ++i) {
-        if (is_in_Vc(&x[3 * i], Lc)) {
-            Vc_idx.push_back(i);
-        }
-    }
-    return Vc_idx;
-}
 
 // run
 

@@ -18,19 +18,26 @@ struct Para {
 
     double kT = 1.0; 
     double mu = -3.2;
+    double mass = 1.0;
 
     // propagation
     uint64_t Nstep = 2e6;
+    uint64_t Anastep = 1e4;
+
+    // configuration
+    bool prepinit = false;
+    uint64_t N0 = 108;
+    std::string conffile = "conf.dat";
 
     // MC related
     double dxmax = 1.0;
-    bool prepinit = false;
-    uint64_t N0 = 108;
     double move_frac = 0.75;
-    std::string conffile = "conf.dat";
+
+    // MD related
+    double dt = 0.005;
+    uint64_t K = 5;
 
     // others 
-    uint64_t Anastep = 10000;
     uint64_t random_seed = 0;
 
     public:
@@ -45,13 +52,16 @@ struct Para {
             ("# rc", rc)
             ("# kT", kT)
             ("# mu", mu)
+            ("# mass", mass)
             ("# Nstep", Nstep)
-            ("# dxmax", dxmax)
+            ("# Anastep", Anastep)
             ("# prepinit", prepinit)
             ("# N0", N0)
-            ("# move_frac", move_frac)
             ("# conffile", conffile)
-            ("# Anastep", Anastep)
+            ("# dxmax", dxmax)
+            ("# move_frac", move_frac)
+            ("# dt", dt)
+            ("# K", K)
             ("# random_seed", random_seed)
             ;
     }
@@ -64,20 +74,23 @@ bool argparse(int argc, char** argv, bool output_flag = true)
     po::options_description desc("Allowed options");
     desc.add_options()
         ("help", "produce help message")
-        ("LJmodel", po::value<std::string>(&para.LJmodel), "specific LJ model version, c or cs")
+        ("LJmodel", po::value<std::string>(&para.LJmodel), "specific LJ model version, c (cutoff) or cs (cutoff + shifted)")
         ("V", po::value<double>(&para.V), "box volume")
         ("Vc", po::value<double>(&para.Vc), "control volume, as a multiple of V")
+        ("rc", po::value<double>(&para.rc), "cutoff distance for LJ")
         ("kT", po::value<double>(&para.kT), "temperature")
         ("mu", po::value<double>(&para.mu), "chemical potential")
-        ("rc", po::value<double>(&para.rc), "cutoff range")
-        ("dxmax", po::value<double>(&para.dxmax), "MC max displacement on each direction")
-        ("Nstep", po::value<uint64_t>(&para.Nstep), "time step")
-        ("Anastep", po::value<uint64_t>(&para.Anastep), "analysis step interval")
+        ("mass", po::value<double>(&para.mass), "mass")
+        ("Nstep", po::value<uint64_t>(&para.Nstep), "total time step, non-negative integer")
+        ("Anastep", po::value<uint64_t>(&para.Anastep), "analysis interval, non-negative integear")
+        ("prepinit", po::value<bool>(&para.prepinit), "bool, if true, prepare initial configuration")
+        ("N0", po::value<uint64_t>(&para.N0), "initial # of atoms to prepare, non-negative integer")
         ("conffile", po::value<std::string>(&para.conffile), "file for configuration")
-        ("prepinit", po::value<bool>(&para.prepinit), "if true, prepare initial configuration")
-        ("N0", po::value<uint64_t>(&para.N0), "initial # of atoms to prepare")
-        ("move_frac", po::value<double>(&para.move_frac), "move probability (instead of exchange)")
-        ("random_seed", po::value<uint64_t>(&para.random_seed), "random seed")
+        ("dxmax", po::value<double>(&para.dxmax), "MC max displacement on each direction")
+        ("move_frac", po::value<double>(&para.move_frac), "MC probability to call move rather than create/destruct")
+        ("dt", po::value<double>(&para.dt), "MD time step")
+        ("K", po::value<uint64_t>(&para.K), "MD interval to call create/remove, non-negative integer")
+        ("random_seed", po::value<uint64_t>(&para.random_seed), "random seed, non-negative integer")
         ;   
     po::variables_map vm; 
     po::store(po::parse_command_line(argc, argv, desc), vm);
