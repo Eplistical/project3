@@ -20,14 +20,14 @@ struct Para {
     uint64_t Nstep = 1e4;
 
     // MC related
-    double dxmax = 0.1;
+    double dxmax = 1.0;
     bool prepinit = false;
     uint64_t N0 = 108;
     double move_frac = 0.75;
     std::string conffile = "conf.dat";
 
     // others 
-    uint64_t Anastep = 100;
+    uint64_t Anastep = 10000;
     uint64_t random_seed = 0;
 
     public:
