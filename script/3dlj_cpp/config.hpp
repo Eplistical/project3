@@ -17,18 +17,18 @@ struct Para {
     double mu = -3.2;
 
     // propagation
-    uint32_t Nstep = 1e4;
+    uint64_t Nstep = 1e4;
 
     // MC related
     double dxmax = 0.1;
     bool prepinit = false;
-    uint32_t N0 = 108;
+    uint64_t N0 = 108;
     double move_frac = 0.75;
     std::string conffile = "conf.dat";
 
     // others 
-    uint32_t Anastep = 100;
-    uint32_t random_seed = 0;
+    uint64_t Anastep = 100;
+    uint64_t random_seed = 0;
 
     public:
     void show(ioer::output_t& out) {
@@ -65,13 +65,13 @@ bool argparse(int argc, char** argv, bool output_flag = true)
         ("mu", po::value<double>(&para.mu), "chemical potential")
         ("rc", po::value<double>(&para.rc), "cutoff range")
         ("dxmax", po::value<double>(&para.dxmax), "MC max displacement on each direction")
-        ("Nstep", po::value<uint32_t>(&para.Nstep), "time step")
-        ("Anastep", po::value<uint32_t>(&para.Anastep), "analysis step interval")
+        ("Nstep", po::value<uint64_t>(&para.Nstep), "time step")
+        ("Anastep", po::value<uint64_t>(&para.Anastep), "analysis step interval")
         ("conffile", po::value<std::string>(&para.conffile), "file for configuration")
         ("prepinit", po::value<bool>(&para.prepinit), "if true, prepare initial configuration")
-        ("N0", po::value<uint32_t>(&para.N0), "initial # of atoms to prepare")
+        ("N0", po::value<uint64_t>(&para.N0), "initial # of atoms to prepare")
         ("move_frac", po::value<double>(&para.move_frac), "move probability (instead of exchange)")
-        ("random_seed", po::value<uint32_t>(&para.random_seed), "random seed")
+        ("random_seed", po::value<uint64_t>(&para.random_seed), "random seed")
         ;   
     po::variables_map vm; 
     po::store(po::parse_command_line(argc, argv, desc), vm);

@@ -42,7 +42,7 @@ inline void pair_energy(const double* x1, const double* x2,
     }
 }
 
-inline void one_energy(const std::vector<double>& x, const uint32_t ofs, 
+inline void one_energy(const std::vector<double>& x, const uint64_t ofs, 
         const double rc, const double Urc, const double L,
         double& U, double& W) 
 {
@@ -50,9 +50,9 @@ inline void one_energy(const std::vector<double>& x, const uint32_t ofs,
     U = 0.0;
     W = 0.0;
     if (not x.empty()) {
-        const uint32_t _3N(x.size());
+        const uint64_t _3N(x.size());
         double Uij, Wij;
-        for (uint32_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
+        for (uint64_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
             if (ofs_i != ofs) {
                 pair_energy(&x[ofs], &x[ofs_i], rc, Urc, L, Uij, Wij);
                 U += Uij;
@@ -71,12 +71,12 @@ inline void all_energy(const std::vector<double>& x,
     U = 0.0;
     W = 0.0;
     if (not x.empty()) {
-        const uint32_t _3N(x.size());
-        const uint32_t _3N_3(_3N - 3);
-        const uint32_t N(_3N / 3);
+        const uint64_t _3N(x.size());
+        const uint64_t _3N_3(_3N - 3);
+        const uint64_t N(_3N / 3);
         double Uij, Wij;
-        for (uint32_t ofs_i(0); ofs_i < _3N_3; ofs_i += 3) {
-            for (uint32_t ofs_j(ofs_i + 3); ofs_j < _3N; ofs_j += 3) {
+        for (uint64_t ofs_i(0); ofs_i < _3N_3; ofs_i += 3) {
+            for (uint64_t ofs_j(ofs_i + 3); ofs_j < _3N; ofs_j += 3) {
                 pair_energy(&x[ofs_i], &x[ofs_j], rc, Urc, L, Uij, Wij);
                 U += Uij;
                 W += Wij;
@@ -93,14 +93,14 @@ inline void potin(const std::vector<double>& x, const std::vector<double>& newx,
         double& dU, double& dW)
 {
     // calc dU & dW for a new particle newx
-    const uint32_t _3N(x.size());
-    const uint32_t N(_3N / 3);
+    const uint64_t _3N(x.size());
+    const uint64_t N(_3N / 3);
 
     dU = 0.0;
     dW = 0.0;
 
     double Uij, Wij;
-    for (uint32_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
+    for (uint64_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
         pair_energy(&newx[0], &x[ofs_i], rc, Urc, L, Uij, Wij);
         dU += Uij;
         dW += Wij;
@@ -110,14 +110,14 @@ inline void potin(const std::vector<double>& x, const std::vector<double>& newx,
     dW += (2.0 * N + 1.0) * WLRC0;
 }
 
-inline void potout(const std::vector<double>& x, const uint32_t ofs,
+inline void potout(const std::vector<double>& x, const uint64_t ofs,
         const double rc, const double Urc, const double L,
         const double ULRC0, const double WLRC0, 
         double& dU, double& dW)
 {
     // calc dU & dW for removing an existing particle x[ofs]
     assert(not x.empty());
-    const uint32_t N(x.size() / 3);
+    const uint64_t N(x.size() / 3);
 
     dU = 0.0;
     dW = 0.0;

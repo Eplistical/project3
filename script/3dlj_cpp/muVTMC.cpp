@@ -16,7 +16,7 @@ using namespace std;
 void read_conf(vector<double>& x, const string& conffile) 
 {
     ioer::h5file_t in(conffile, ios::in);
-    uint32_t N;
+    uint64_t N;
     string program;
     in.read_attr("para", "N", N, "program", program);
     in.read_dataset("x", x);
@@ -28,7 +28,7 @@ void read_conf(vector<double>& x, const string& conffile)
 inline void write_conf(const vector<double>& x, const string& conffile) 
 {
     ioer::h5file_t out(conffile, ios::out);
-    uint32_t N(x.size() / 3);
+    uint64_t N(x.size() / 3);
     out.create_dataset("para", vector<double>{0.0});
     out.create_attr("para", "N", N, "program", "muVTMC");
     out.create_dataset("x", x);
@@ -84,20 +84,20 @@ void muVTMC()
     // main MC part
     double randnum;
     const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
-    uint32_t N;
-    uint32_t Naccept(0), Nmove(0);
+    uint64_t N;
+    uint64_t Naccept(0), Nmove(0);
     double Usum(0.0), Wsum(0.0), rhosum(0.0);
-    uint32_t Nsamp(0);
+    uint64_t Nsamp(0);
     out.info("# start MC looping ... ");
     out.info("# shuffle frac = ", shuffle_frac, " create frac = ", create_frac);
     out.tabout("# Nsamp", "<rho>", "<U>", "<P>");
-    for (uint32_t istep(0); istep < para.Nstep; ++istep) {
+    for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         N = x.size() / 3;
 
         randnum = randomer::rand();
         if (randnum < shuffle_frac) {
             if (not x.empty()) {
-                uint32_t ofs(randomer::choice(N) * 3);
+                uint64_t ofs(randomer::choice(N) * 3);
                 Naccept += shuffle(x, ofs, U, W, para.kT, para.dxmax, para.L, para.rc, Urc, ULRC0, WLRC0);
             }
         }
@@ -107,7 +107,7 @@ void muVTMC()
         }
         else {
             if (not x.empty()) {
-                uint32_t ofs(randomer::choice(N) * 3);
+                uint64_t ofs(randomer::choice(N) * 3);
                 Naccept += destruct(x, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
             }
         }

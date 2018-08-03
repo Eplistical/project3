@@ -20,14 +20,14 @@ inline bool decide(double x) {
         return false;
 }
 
-bool shuffle(std::vector<double>& x, const uint32_t ofs,
+bool shuffle(std::vector<double>& x, const uint64_t ofs,
         double& U, double& W,
         const double kT, const double dxmax, const double L,
         const double rc, const double Urc,
         const double ULRC0, const double WLRC0)
 {
     // shuffle the particle x[ofs:ofs+3] w/ MC algorithm
-    const uint32_t _3N = x.size();
+    const uint64_t _3N = x.size();
     assert (ofs % 3 == 0 and ofs < _3N);
 
     double U0, W0, U1, W1;
@@ -65,8 +65,8 @@ bool create(std::vector<double>& x, const std::vector<double>& newx,
         const double kT, const double mu,
         const double ULRC0, const double WLRC0)
 {
-    const uint32_t _3N(x.size());
-    const uint32_t N(_3N / 3);
+    const uint64_t _3N(x.size());
+    const uint64_t N(_3N / 3);
     double dU, dW;
     double dCB;
 
@@ -82,15 +82,15 @@ bool create(std::vector<double>& x, const std::vector<double>& newx,
     return false;
 }
 
-bool destruct(std::vector<double>& x, const uint32_t ofs,
+bool destruct(std::vector<double>& x, const uint64_t ofs,
         double& U, double& W,
         const double rc, const double Urc,
         const double L, const double V,
         const double kT, const double mu,
         const double ULRC0, const double WLRC0)
 {
-    const uint32_t _3N(x.size());
-    const uint32_t N(_3N / 3);
+    const uint64_t _3N(x.size());
+    const uint64_t N(_3N / 3);
     assert(ofs % 3 == 0 and ofs < _3N);
     double dU, dW;
     double dDB;
