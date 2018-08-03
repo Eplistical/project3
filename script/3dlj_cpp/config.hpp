@@ -1,6 +1,7 @@
 #ifndef _CONFIG_HPP
 #define _CONFIG_HPP
 #include <string>
+#include <cassert>
 
 #include "boost/program_options.hpp"
 namespace po = boost::program_options;
@@ -11,13 +12,15 @@ struct Para {
     std::string LJmodel = "cs";
     double V = 512;
     double L = pow(V, 1.0 / 3.0); 
+    double Vc = 1.0 * V;
+    double Lc = pow(Vc, 1.0 / 3.0);
     double rc = 2.5;
 
     double kT = 1.0; 
     double mu = -3.2;
 
     // propagation
-    uint64_t Nstep = 1e4;
+    uint64_t Nstep = 2e6;
 
     // MC related
     double dxmax = 1.0;
@@ -37,6 +40,8 @@ struct Para {
             ("# LJmodel", LJmodel)
             ("# V", V)
             ("# L", L)
+            ("# Vc", Vc)
+            ("# Lc", Lc)
             ("# rc", rc)
             ("# kT", kT)
             ("# mu", mu)
@@ -61,6 +66,7 @@ bool argparse(int argc, char** argv, bool output_flag = true)
         ("help", "produce help message")
         ("LJmodel", po::value<std::string>(&para.LJmodel), "specific LJ model version, c or cs")
         ("V", po::value<double>(&para.V), "box volume")
+        ("Vc", po::value<double>(&para.Vc), "control volume, as a multiple of V")
         ("kT", po::value<double>(&para.kT), "temperature")
         ("mu", po::value<double>(&para.mu), "chemical potential")
         ("rc", po::value<double>(&para.rc), "cutoff range")
@@ -85,6 +91,11 @@ bool argparse(int argc, char** argv, bool output_flag = true)
     }
     if (vm.count("V")) {
         para.L = pow(para.V, 1.0 / 3.0);
+    }
+    if (vm.count("Vc")) {
+        assert(para.Vc <= 1.0 and para.Vc > 0.0);
+        para.Vc *= para.V;
+        para.Lc = pow(para.Vc, 1.0 / 3.0);
     }
     if (vm.count("LJmodel")) {
         assert(para.LJmodel == "c" or para.LJmodel == "cs");

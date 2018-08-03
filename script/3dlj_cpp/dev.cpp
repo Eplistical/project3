@@ -11,6 +11,8 @@
 #include "mcmd.hpp"
 using namespace std;
 
+const string program_name("dev");
+
 // configuration I/O functions
 
 void read_conf(vector<double>& x, const string& conffile) 
@@ -26,7 +28,7 @@ void read_conf(vector<double>& x, const string& conffile)
         x.resize(0);
     }
     assert(N * 3 == x.size());
-    assert(program == "muVTMC");
+    assert(program == program_name);
     in.close();
 }
 
@@ -35,14 +37,39 @@ inline void write_conf(const vector<double>& x, const string& conffile)
     ioer::h5file_t out(conffile, ios::out);
     uint64_t N(x.size() / 3);
     out.create_dataset("para", vector<double>{0.0});
-    out.create_attr("para", "N", N, "program", "muVTMC");
+    out.create_attr("para", "N", N, "program", program_name);
     out.create_dataset("x", x);
     out.close();
 }
 
-// muVTMC
+inline bool is_in_Vc(const double* x, const double Lc) {
+    // check if x[0:3] is in the control volume [-0.5*Lc, 0.5*Lc]
+    for (int k(0); k < 3; ++k) {
+        if (x[k] > 0.5 * Lc or x[k] < -0.5 * Lc) {
+            return false;
+        }
+    }
+    return true;
+}
 
-void muVTMC() 
+inline vector<double> get_Vc_idx(const vector<double>& x, const double Lc) {
+    // get indices for particles that are in the control colume
+    const uint64_t _3N(x.size());
+    const uint64_t N(_3N / 3);
+
+    vector<double> Vc_idx;
+    Vc_idx.reserve(N);
+    for (int i(0); i < N; ++i) {
+        if (is_in_Vc(&x[3 * i], Lc)) {
+            Vc_idx.push_back(i);
+        }
+    }
+    return Vc_idx;
+}
+
+// run
+
+void run() 
 {
     // output config
     ioer::output_t out("");
@@ -54,6 +81,8 @@ void muVTMC()
         ("# LJmodel", para.LJmodel)
         ("# V", para.V)
         ("# L", para.L)
+        ("# Vc", para.Vc)
+        ("# Lc", para.Lc)
         ("# rc", para.rc)
         ("# kT", para.kT)
         ("# mu", para.mu)
@@ -66,7 +95,7 @@ void muVTMC()
         ("# random_seed", para.random_seed)
         ;
     out.info("# --- PROGRAM BEGINS --- ");
-    out.info("# exe name: muVTMC ");
+    out.info("# program name: ", program_name);
 
     // tail corrections
     double ULRC0, WLRC0, Urc;
@@ -100,18 +129,22 @@ void muVTMC()
 
         randnum = randomer::rand();
         if (randnum < shuffle_frac) {
+            // shuffle
             if (not x.empty()) {
                 uint64_t ofs(randomer::choice(N) * 3);
                 Naccept += shuffle(x, ofs, U, W, para.kT, para.dxmax, para.L, para.rc, Urc, ULRC0, WLRC0);
             }
         }
         else if (randnum < create_frac) {
-            vector<double> newx(randomer::vrand(3, -0.5 * para.L, 0.5 * para.L));
+            // create
+            vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
             Naccept += create(x, newx, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
         }
         else {
-            if (not x.empty()) {
-                uint64_t ofs(randomer::choice(N) * 3);
+            // destruct
+            vector<double> Vc_idx(get_Vc_idx(x, para.Lc));
+            if (not Vc_idx.empty()) {
+                uint64_t ofs(randomer::choice(Vc_idx) * 3);
                 Naccept += destruct(x, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
             }
         }
@@ -177,7 +210,7 @@ int main(int argc, char** argv) {
         randomer::seed(para.random_seed);
 
         boost::timer::cpu_timer cpu_timer;
-        muVTMC();
+        run();
         ioer::info("# ", cpu_timer.format(4));
     }
     return 0;
