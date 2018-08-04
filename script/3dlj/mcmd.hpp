@@ -18,14 +18,14 @@ inline bool is_in_Vc(const double* x, const double Lc) {
     return true;
 }
 
-inline std::vector<double> get_Vc_idx(const std::vector<double>& x, const double Lc) {
+inline std::vector<uint64_t> get_Vc_idx(const std::vector<double>& x, const double Lc) {
     // get indices for particles that are in the control colume
     const uint64_t _3N(x.size());
     const uint64_t N(_3N / 3);
 
-    std::vector<double> Vc_idx;
+    std::vector<uint64_t> Vc_idx;
     Vc_idx.reserve(N);
-    for (int i(0); i < N; ++i) {
+    for (uint64_t i(0); i < N; ++i) {
         if (is_in_Vc(&x[3 * i], Lc)) {
             Vc_idx.push_back(i);
         }
@@ -90,6 +90,7 @@ bool create(std::vector<double>& x, const std::vector<double>& newx,
         const double kT, const double mu,
         const double ULRC0, const double WLRC0)
 {
+    // attempt to create a new particle at newx
     const uint64_t _3N(x.size());
     const uint64_t N(_3N / 3);
     double dU, dW;
@@ -114,6 +115,7 @@ bool destruct(std::vector<double>& x, const uint64_t ofs,
         const double kT, const double mu,
         const double ULRC0, const double WLRC0)
 {
+    // attempt to destruct an existing particle x[ofs]
     const uint64_t _3N(x.size());
     const uint64_t N(_3N / 3);
     assert(ofs % 3 == 0 and ofs < _3N);
@@ -130,6 +132,16 @@ bool destruct(std::vector<double>& x, const uint64_t ofs,
         return true;
     }
     return false;
+}
+
+
+bool evolve(std::vector<double>& x, std::vector<double>& v,
+        double& U, double& W,
+        const double kT, const double dt, const double L,
+        const double rc, const double Urc,
+        const double ULRC0, const double WLRC0)
+{
+    // evolve the system w/ MD algorithm
 }
 
 #endif
