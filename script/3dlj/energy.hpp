@@ -17,36 +17,42 @@ inline void raw_pair_energy(const double r2, double& U, double& W)
     W = 16.0 * ir6 * (ir6 - 0.5);
 }
 
-inline void pair_energy(const double* x1, const double* x2,
+inline bool pair_energy(const double* x1, const double* x2,
         const double rc, const double Urc, const double L,
-        double& U, double& W)
+        double& U, double& W, double* F, bool calc_F = false)
 {
     // calc pair energy between x1 & x2
     // subject to min imag & cut-off
+    static std::vector<double> dx(3, 0.0);
     const double rc2(rc * rc);
-    double dxk, r2;
+    double r2;
     r2 = 0.0;
     for (int k(0); k < 3; ++k) {
-        dxk = x1[k] - x2[k];
-        dxk -= L * round(dxk / L);
-        r2 += dxk * dxk;
+        dx[k] = x1[k] - x2[k];
+        dx[k] -= L * round(dx[k] / L);
+        r2 += dx[k] * dx[k];
     }
 
     if (r2 < rc2) {
         raw_pair_energy(r2, U, W);
         U -= Urc;
+        if (calc_F) {
+            for (int k(0); k < 3; ++k) 
+                F[k] = 3.0 * W / r2 * dx[k];
+        }
+        return true;
     }
     else {
-        U = 0.0;
-        W = 0.0;
+        return false;
     }
 }
 
 inline void one_energy(const std::vector<double>& x, const uint64_t ofs, 
         const double rc, const double Urc, const double L,
-        double& U, double& W) 
+        double& U, double& W, double* F, bool calc_F = false) 
 {
     // calc U & W for a given atom x[ofs] w/ other atoms
+    std::vector<double> Fi(3);
     U = 0.0;
     W = 0.0;
     if (not x.empty()) {
@@ -54,9 +60,15 @@ inline void one_energy(const std::vector<double>& x, const uint64_t ofs,
         double Uij, Wij;
         for (uint64_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
             if (ofs_i != ofs) {
-                pair_energy(&x[ofs], &x[ofs_i], rc, Urc, L, Uij, Wij);
-                U += Uij;
-                W += Wij;
+                if ( pair_energy(&x[ofs], &x[ofs_i], rc, Urc, L, Uij, Wij, &Fi[0], calc_F) ) {
+                    U += Uij;
+                    W += Wij;
+
+                    if (calc_F) {
+                        for (int k(0); k < 3; ++k)
+                            F[k] += Fi[k];
+                    }
+                }
             }
         }
     }
@@ -65,9 +77,10 @@ inline void one_energy(const std::vector<double>& x, const uint64_t ofs,
 inline void all_energy(const std::vector<double>& x, 
         const double rc, const double Urc, const double L, 
         const double ULRC0, const double WLRC0, 
-        double& U, double& W)
+        double& U, double& W, double* F, bool calc_F = false)
 {
     // calc total U & W for a given configuration x
+    std::vector<double> Fij(3);
     U = 0.0;
     W = 0.0;
     if (not x.empty()) {
@@ -77,9 +90,16 @@ inline void all_energy(const std::vector<double>& x,
         double Uij, Wij;
         for (uint64_t ofs_i(0); ofs_i < _3N_3; ofs_i += 3) {
             for (uint64_t ofs_j(ofs_i + 3); ofs_j < _3N; ofs_j += 3) {
-                pair_energy(&x[ofs_i], &x[ofs_j], rc, Urc, L, Uij, Wij);
-                U += Uij;
-                W += Wij;
+                if ( pair_energy(&x[ofs_i], &x[ofs_j], rc, Urc, L, Uij, Wij, &Fij[0], calc_F) ) {
+                    U += Uij;
+                    W += Wij;
+                    if (calc_F) {
+                        for (int k(0); k < 3; ++k) {
+                            F[ofs_i + k] += Fij[k];
+                            F[ofs_j + k] -= Fij[k];
+                        }
+                    }
+                }
             }
         }
         U += ULRC0 * N * N;
@@ -93,6 +113,7 @@ inline void potin(const std::vector<double>& x, const std::vector<double>& newx,
         double& dU, double& dW)
 {
     // calc dU & dW for a new particle newx
+    std::vector<double> F;
     const uint64_t _3N(x.size());
     const uint64_t N(_3N / 3);
 
@@ -101,9 +122,10 @@ inline void potin(const std::vector<double>& x, const std::vector<double>& newx,
 
     double Uij, Wij;
     for (uint64_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
-        pair_energy(&newx[0], &x[ofs_i], rc, Urc, L, Uij, Wij);
-        dU += Uij;
-        dW += Wij;
+        if ( pair_energy(&newx[0], &x[ofs_i], rc, Urc, L, Uij, Wij, &F[0]) ) {
+            dU += Uij;
+            dW += Wij;
+        }
     }
 
     dU += (2.0 * N + 1.0) * ULRC0;
@@ -118,11 +140,12 @@ inline void potout(const std::vector<double>& x, const uint64_t ofs,
     // calc dU & dW for removing an existing particle x[ofs]
     assert(not x.empty());
     const uint64_t N(x.size() / 3);
+    std::vector<double> F;
 
     dU = 0.0;
     dW = 0.0;
 
-    one_energy(x, ofs, rc, Urc, L, dU, dW);
+    one_energy(x, ofs, rc, Urc, L, dU, dW, &F[0]);
 
     dU = -dU - (2.0 * N - 1.0) * ULRC0;
     dW = -dW - (2.0 * N - 1.0) * WLRC0;

@@ -80,6 +80,7 @@ void run()
 
     // init configuration
     vector<double> x;
+    vector<double> F;
     double U, W;
     if (para.prepinit) {
         x = randomer::vrand(3 * para.N0, -0.5 * para.L, 0.5 * para.L);
@@ -87,8 +88,17 @@ void run()
     else {
         read_conf(x, para.conffile);
     }
-    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W);
+    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W, &F[0]);
     out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
+
+    x = vector<double>{-2, 0, 0, 2, 0, 0};
+    vector<double> v = vector<double>{0.5, 0, 0, -0.5, 0, 0};
+    for (int ii(0); ii < para.Nstep; ++ii) {
+        out.tabout(ii * para.dt, x[0], x[3], v[0], v[3]);
+        evolve(x, v, U, W, para.L, para.dt, para.mass, para.rc, Urc, ULRC0, WLRC0);
+    }
+    abort();
+
 
     // main MC part
     double randnum;
@@ -146,7 +156,7 @@ void run()
 
             // assert tot U & W
             double Utot, Wtot;
-            all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, Utot, Wtot);
+            all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, Utot, Wtot, &F[0]);
             assert(abs(Utot - U) / abs(U) < 1e-5);
             assert(abs(Wtot - W) / abs(W) < 1e-5);
         }
@@ -183,6 +193,7 @@ int main(int argc, char** argv) {
     }
     else {
         randomer::seed(para.random_seed);
+
 
         boost::timer::cpu_timer cpu_timer;
         run();

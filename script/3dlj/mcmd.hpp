@@ -57,9 +57,10 @@ bool shuffle(std::vector<double>& x, const uint64_t ofs,
 
     double U0, W0, U1, W1;
     double dU, dW;
+    std::vector<double> F;
 
     std::vector<double> oldx(3);
-    one_energy(x, ofs, rc, Urc, L, U0, W0);
+    one_energy(x, ofs, rc, Urc, L, U0, W0, &F[0]);
 
     for (int k(0); k < 3; ++k) {
         oldx[k] = x[ofs + k];
@@ -67,7 +68,7 @@ bool shuffle(std::vector<double>& x, const uint64_t ofs,
         x[ofs + k] -= L * round(x[ofs + k] / L); // periodic condition
     }
     
-    one_energy(x, ofs, rc, Urc, L, U1, W1);
+    one_energy(x, ofs, rc, Urc, L, U1, W1, &F[0]);
 
     dU = U1 - U0;
     dW = W1 - W0;
@@ -135,13 +136,28 @@ bool destruct(std::vector<double>& x, const uint64_t ofs,
 }
 
 
-bool evolve(std::vector<double>& x, std::vector<double>& v,
-        double& U, double& W,
-        const double kT, const double dt, const double L,
+void evolve(std::vector<double>& x, std::vector<double>& v,
+        double& U, double& W, const double L,
+        const double dt, const double mass,
         const double rc, const double Urc,
         const double ULRC0, const double WLRC0)
 {
     // evolve the system w/ MD algorithm
+    static std::vector<double> F0, F1;
+    const uint64_t _3N(x.size());
+    const uint64_t _3N_3(_3N - 3);
+    const uint64_t N(_3N / 3);
+    double Uij, Wij;
+    F0.resize(_3N);
+    F1.resize(_3N);
+    F0.assign(_3N, 0.0);
+    F1.assign(_3N, 0.0);
+
+    // velocity verlet
+    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F0[0], true);
+    x = x + v * dt + 0.5 / mass * dt * dt * F0;
+    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F1[0], true);
+    v = v + 0.5 / mass * dt * (F0 + F1);
 }
 
 #endif

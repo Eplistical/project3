@@ -79,6 +79,7 @@ void run()
 
     // init configuration
     vector<double> x;
+    vector<double> F;
     double U, W;
     if (para.prepinit) {
         x = randomer::vrand(3 * para.N0, -0.5 * para.L, 0.5 * para.L);
@@ -86,7 +87,7 @@ void run()
     else {
         read_conf(x, para.conffile);
     }
-    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W);
+    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W, &F[0]);
     out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
 
     // main MC part
@@ -145,7 +146,7 @@ void run()
 
             // assert tot U & W
             double Utot, Wtot;
-            all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, Utot, Wtot);
+            all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, Utot, Wtot, &F[0]);
             assert(abs(Utot - U) / abs(U) < 1e-5);
             assert(abs(Wtot - W) / abs(W) < 1e-5);
         }
