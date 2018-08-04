@@ -118,7 +118,7 @@ void run()
         }
         else {
             // destruct
-            vector<double> Vc_idx(get_Vc_idx(x, para.Lc));
+            vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
             if (not Vc_idx.empty()) {
                 uint64_t ofs(randomer::choice(Vc_idx) * 3);
                 Naccept += destruct(x, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
@@ -178,7 +178,6 @@ void run()
 // main
 
 int main(int argc, char** argv) {
-
     if (argparse(argc, argv) == false) {
         return 0;
     }
