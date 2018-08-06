@@ -35,6 +35,7 @@ struct Para {
 
     // MD related
     double dt = 0.005;
+    double nu = 10;
     uint64_t K = 5;
 
     // others 
@@ -61,6 +62,7 @@ struct Para {
             ("# dxmax", dxmax)
             ("# move_frac", move_frac)
             ("# dt", dt)
+            ("# nu", nu)
             ("# K", K)
             ("# random_seed", random_seed)
             ;
@@ -89,6 +91,7 @@ bool argparse(int argc, char** argv, bool output_flag = true)
         ("dxmax", po::value<double>(&para.dxmax), "MC max displacement on each direction")
         ("move_frac", po::value<double>(&para.move_frac), "MC probability to call move rather than create/destruct")
         ("dt", po::value<double>(&para.dt), "MD time step")
+        ("mu", po::value<double>(&para.nu), "MD Anderen thermostat collision frequency")
         ("K", po::value<uint64_t>(&para.K), "MD interval to call create/remove, non-negative integer")
         ("random_seed", po::value<uint64_t>(&para.random_seed), "random seed, non-negative integer")
         ;   

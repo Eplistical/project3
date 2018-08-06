@@ -2,6 +2,7 @@
 #define _MCMD_HPP
 #include <cmath>
 #include <cassert>
+#include <algorithm>
 #include <vector>
 #include "misc/randomer.hpp"
 #include "energy.hpp"
@@ -138,26 +139,38 @@ bool destruct(std::vector<double>& x, const uint64_t ofs,
 
 void evolve(std::vector<double>& x, std::vector<double>& v,
         double& U, double& W, const double L,
-        const double dt, const double mass,
+        const double dt, const double mass, 
+        const double kT, const double nu,
         const double rc, const double Urc,
         const double ULRC0, const double WLRC0)
 {
     // evolve the system w/ MD algorithm
-    static std::vector<double> F0, F1;
+    static std::vector<double> F;
     const uint64_t _3N(x.size());
     const uint64_t _3N_3(_3N - 3);
     const uint64_t N(_3N / 3);
     double Uij, Wij;
-    F0.resize(_3N);
-    F1.resize(_3N);
-    F0.assign(_3N, 0.0);
-    F1.assign(_3N, 0.0);
+    F.resize(_3N);
 
     // velocity verlet
-    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F0[0], true);
-    x = x + v * dt + 0.5 / mass * dt * dt * F0;
-    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F1[0], true);
-    v = v + 0.5 / mass * dt * (F0 + F1);
+    F.assign(_3N, 0.0);
+    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
+    x = x + v * dt + 0.5 / mass * dt * dt * F;
+    v = v + 0.5 / mass * dt * F;
+
+    F.assign(_3N, 0.0);
+    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
+    v = v + 0.5 / mass * dt * F;
+
+    // Andersen Thermostat
+    const double nudt(nu * dt);
+    std::vector<double> vnew;
+    for (uint64_t ofs(0); ofs < _3N; ofs += 3) {
+        if (randomer::rand() < nudt) {
+            vnew = randomer::maxwell_dist(mass, kT);
+            std::copy(vnew.begin(), vnew.begin() + 3, v.begin() + ofs);
+        }
+    }
 }
 
 #endif

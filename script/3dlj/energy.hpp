@@ -91,6 +91,15 @@ inline void all_energy(const std::vector<double>& x,
         for (uint64_t ofs_i(0); ofs_i < _3N_3; ofs_i += 3) {
             for (uint64_t ofs_j(ofs_i + 3); ofs_j < _3N; ofs_j += 3) {
                 if ( pair_energy(&x[ofs_i], &x[ofs_j], rc, Urc, L, Uij, Wij, &Fij[0], calc_F) ) {
+
+                    if (isinf(Wij) or isinf(Uij)) {
+                        ioer::tabout("inf! ", ofs_i, ofs_j,
+                                x[ofs_i], x[ofs_i + 1], x[ofs_i +2],
+                                x[ofs_j], x[ofs_j + 1], x[ofs_j +2]
+                                );
+                        assert((not isinf(Wij)) and (not isinf(Uij)));
+                    }
+
                     U += Uij;
                     W += Wij;
                     if (calc_F) {
