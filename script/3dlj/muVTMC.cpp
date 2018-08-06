@@ -13,7 +13,44 @@ using namespace std;
 
 const string program_name("muVTMC");
 
-// configuration I/O functions
+// configuration functions
+void init_conf(vector<double>& x, vector<double>& v,
+        const double mass, const double kT,
+        const double L, const uint64_t N0) 
+{
+    // initialize N0 particles in the box with length L
+    const uint64_t _3N(N0 * 3);
+
+    // init x
+    x.resize(_3N);
+    uint64_t N_per_row(1);
+    while (N_per_row * N_per_row * N_per_row < N0) {
+        N_per_row += 1;
+    }
+    double spacing(L / N_per_row);
+    uint64_t idx(0);
+    for (int ix(0); ix < N_per_row; ++ix) {
+        for (int iy(0); iy < N_per_row; ++iy) {
+            for (int iz(0); iz < N_per_row; ++iz) {
+                if (idx >= N0) {
+                    continue;
+                }
+                else {
+                    x[0 + idx * 3] = (ix + 0.5) * spacing - 0.5 * L;
+                    x[1 + idx * 3] = (iy + 0.5) * spacing - 0.5 * L;
+                    x[2 + idx * 3] = (iz + 0.5) * spacing - 0.5 * L;
+                    idx += 1;
+                }
+            }
+        }
+    }
+    /*
+    x = randomer::vrand(3 * para.N0, -0.5 * para.L, 0.5 * para.L);
+    */
+
+    // init v
+    v = randomer::maxwell_dist(mass, kT, N0);
+}
 
 void read_conf(vector<double>& x, const string& conffile) 
 {
@@ -51,7 +88,6 @@ void run()
     out.set_precision(6);
 
     // show para
-    out.info("# --- CONFIG PARAMETERS --- ");
     out.keyval()
         ("# LJmodel", para.LJmodel)
         ("# V", para.V)
@@ -61,6 +97,7 @@ void run()
         ("# rc", para.rc)
         ("# kT", para.kT)
         ("# mu", para.mu)
+        ("# mass", para.mass)
         ("# Nstep", para.Nstep)
         ("# dxmax", para.dxmax)
         ("# prepinit", para.prepinit)
@@ -78,16 +115,16 @@ void run()
     out.info("# tail correction: Urc = ", Urc, " ULRC0 = ", ULRC0, " WLRC0 = ", WLRC0);
 
     // init configuration
-    vector<double> x;
-    vector<double> F;
+    vector<double> x, v;
     double U, W;
     if (para.prepinit) {
+        init_conf(x, v, para.mass, para.kT, para.L, para.N0);
         x = randomer::vrand(3 * para.N0, -0.5 * para.L, 0.5 * para.L);
     }
     else {
         read_conf(x, para.conffile);
     }
-    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W, &F[0]);
+    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W, nullptr);
     out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
 
     // main MC part
@@ -143,12 +180,6 @@ void run()
                     rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V
                     );
             write_conf(x, para.conffile);
-
-            // assert tot U & W
-            double Utot, Wtot;
-            all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, Utot, Wtot, &F[0]);
-            assert(abs(Utot - U) / abs(U) < 1e-5);
-            assert(abs(Wtot - W) / abs(W) < 1e-5);
         }
     } 
     out.tabout(Nsamp, 
