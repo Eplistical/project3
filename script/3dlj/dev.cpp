@@ -141,14 +141,41 @@ void run()
     uint64_t Nsamp(0);
     out.info("# start MD looping ... ");
     out.info("# shuffle frac = ", shuffle_frac, " create frac = ", create_frac);
-    out.tabout("# Nsamp", "<rho>", "<U>", "<P>", "<kT>");
+    out.tabout("# Nsamp", "<rho>", "<U>", "<P>", "<kT>", "rho", "U", "W");
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         N = x.size() / 3;
-
+            // momemtum
+        /*
+            vector<double> mom(3);
+            for (uint64_t i(0); i < N; ++i) {
+                mom[0] += v[i * 3 + 0];
+                mom[1] += v[i * 3 + 1];
+                mom[2] += v[i * 3 + 2];
+            }
+            ioer::info("sum v = ", mom);
+            */
         // evolve
         if (not x.empty()) {
             evolve(x, v, U, W, para.L, para.dt, para.mass, para.kT, para.nu,
                     para.rc, Urc, ULRC0, WLRC0);
+        }
+
+        // exchange
+        if (istep % para.K == 0) {
+            if (randomer::rand() < 0.5) {
+                // create
+                vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
+                vector<double> newv(randomer::maxwell_dist(para.mass, para.kT));
+                create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+            }
+            else {
+                // destruct
+                vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
+                if (not Vc_idx.empty()) {
+                    uint64_t ofs(randomer::choice(Vc_idx) * 3);
+                    destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+                }
+            }
         }
 
         // statistics
@@ -158,7 +185,7 @@ void run()
             rhosum += N / para.V;
             Usum += U;
             Wsum += W;
-            kT_sum += para.mass * mean(v * v);
+            kT_sum += 2 * cal_Ek(v, para.mass) / N / 3.0;
         }
         // output & save
         if (istep % para.Anastep == 0) {
@@ -167,7 +194,10 @@ void run()
                     rhosum / Nsamp,
                     Usum / Nsamp / para.V / (rhosum / Nsamp),
                     rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V,
-                    kT_sum / Nsamp
+                    kT_sum / Nsamp,
+                    N / para.V,
+                    U,
+                    W
                     );
             write_conf(x, v, para.conffile);
         }
@@ -176,7 +206,10 @@ void run()
             rhosum / Nsamp,
             Usum / Nsamp / para.V / (rhosum / Nsamp),
             rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V,
-            kT_sum / Nsamp
+            kT_sum / Nsamp,
+            N / para.V,
+            U,
+            W
             );
     write_conf(x, v, para.conffile);
 

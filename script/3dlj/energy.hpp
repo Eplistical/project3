@@ -1,9 +1,9 @@
 #ifndef _ENERGY_HPP
 #define _ENERGY_HPP
-#include <vector>
 #include <string>
 #include <exception>
 #include <cmath>
+#include "misc/vector.hpp"
 
 // energy functions
 
@@ -183,6 +183,10 @@ void tail_correction(const double rc, const double V, const std::string& LJmodel
         double Wrc, rc2(rc * rc);
         raw_pair_energy(rc2, Urc, Wrc);
     }
+}
+
+inline double cal_Ek(const std::vector<double>& v, const double mass) {
+    return 0.5 * mass * sum(v * v);
 }
 
 #endif

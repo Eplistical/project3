@@ -85,14 +85,15 @@ bool shuffle(std::vector<double>& x, const uint64_t ofs,
     }
 }
 
-bool create(std::vector<double>& x, const std::vector<double>& newx,
+bool create(std::vector<double>& x, std::vector<double>& v, 
+        const std::vector<double>& newx, const std::vector<double>& newv,
         double& U, double& W,
         const double rc, const double Urc,
         const double L, const double V,
         const double kT, const double mu,
         const double ULRC0, const double WLRC0)
 {
-    // attempt to create a new particle at newx
+    // attempt to create a new particle at newx w/ velocity newv
     const uint64_t _3N(x.size());
     const uint64_t N(_3N / 3);
     double dU, dW;
@@ -105,12 +106,16 @@ bool create(std::vector<double>& x, const std::vector<double>& newx,
         x.insert(x.end(), newx.begin(), newx.begin() + 3);
         U += dU;
         W += dW;
+        if (not v.empty()) {
+            v.insert(v.end(), newv.begin(), newv.begin() + 3);
+        }
         return true;
     }
     return false;
 }
 
-bool destruct(std::vector<double>& x, const uint64_t ofs,
+bool destruct(std::vector<double>& x, std::vector<double>& v,
+        const uint64_t ofs,
         double& U, double& W,
         const double rc, const double Urc,
         const double L, const double V,
@@ -118,6 +123,7 @@ bool destruct(std::vector<double>& x, const uint64_t ofs,
         const double ULRC0, const double WLRC0)
 {
     // attempt to destruct an existing particle x[ofs]
+    // if success, rescale rest v to maintain total momentum
     const uint64_t _3N(x.size());
     const uint64_t N(_3N / 3);
     assert(ofs % 3 == 0 and ofs < _3N);
@@ -131,6 +137,35 @@ bool destruct(std::vector<double>& x, const uint64_t ofs,
         x.erase(x.begin() + ofs, x.begin() + ofs + 3);
         U += dU;
         W += dW;
+
+        if (not v.empty()) {
+            /*
+            // calc coefficient
+            std::vector<double> coef(3, 0.0);
+            for (uint64_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
+                if (ofs != ofs_i) {
+                    for (int k(0); k < 3; ++k) {
+                        coef[k] += std::abs(v[ofs_i + k]);
+                    }
+                }
+            }
+            for (int k(0); k < 3; ++k) {
+                coef[k] = v[ofs + k] / coef[k];
+            }
+            // rescale rest v
+            for (uint64_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
+                if (ofs != ofs_i) {
+                    for (int k(0); k < 3; ++k) {
+                        v[ofs_i + k] += std::abs(v[ofs_i + k]) * coef[k];
+                    }
+                }
+            }
+            // erase v[ofs]
+            v.erase(v.begin() + ofs, v.begin() + ofs + 3);
+            */
+            v.erase(v.begin() + ofs, v.begin() + ofs + 3);
+            //v = v * sqrt(mean(v * v) / kT);
+        }
         return true;
     }
     return false;
