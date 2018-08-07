@@ -9,6 +9,7 @@
 #include "config.hpp"
 #include "energy.hpp"
 #include "mcmd.hpp"
+#include "thermostat.hpp"
 using namespace std;
 
 const string program_name("dev");
@@ -134,6 +135,7 @@ void run()
     out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
 
     // main MD part
+    //vector<double> vrec;
     double randnum;
     const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     uint64_t N;
@@ -144,22 +146,15 @@ void run()
     out.tabout("# Nsamp", "<rho>", "<U>", "<P>", "<kT>", "rho", "U", "W");
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         N = x.size() / 3;
-            // momemtum
-        /*
-            vector<double> mom(3);
-            for (uint64_t i(0); i < N; ++i) {
-                mom[0] += v[i * 3 + 0];
-                mom[1] += v[i * 3 + 1];
-                mom[2] += v[i * 3 + 2];
-            }
-            ioer::info("sum v = ", mom);
-            */
         // evolve
         if (not x.empty()) {
             evolve(x, v, U, W, para.L, para.dt, para.mass, para.kT, para.nu,
                     para.rc, Urc, ULRC0, WLRC0);
+            //berendsen_thermostat(v, para.mass, para.kT, para.nu, para.dt);
+            andersen_thermostat(v, para.mass, para.kT, para.nu, para.dt);
         }
 
+        /*
         // exchange
         if (istep % para.K == 0) {
             if (randomer::rand() < 0.5) {
@@ -177,11 +172,13 @@ void run()
                 }
             }
         }
+        */
 
         // statistics
         Nsamp += 1;
         N = x.size() / 3;
         if (N > 0) {
+            //vrec.insert(vrec.end(), v.begin(), v.end());
             rhosum += N / para.V;
             Usum += U;
             Wsum += W;
@@ -196,8 +193,8 @@ void run()
                     rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V,
                     kT_sum / Nsamp,
                     N / para.V,
-                    U,
-                    W
+                    U / N,
+                    W / N
                     );
             write_conf(x, v, para.conffile);
         }
@@ -208,10 +205,11 @@ void run()
             rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V,
             kT_sum / Nsamp,
             N / para.V,
-            U,
-            W
+            U / N,
+            W / N
             );
     write_conf(x, v, para.conffile);
+    //write_conf(x, vrec, para.conffile);
 
     //final output
     const double avgrho(rhosum / Nsamp);
