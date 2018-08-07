@@ -2,6 +2,7 @@
 #include <cassert>
 #include <algorithm>
 #include <string>
+#include <map>
 #include "misc/vector.hpp"
 #include "misc/randomer.hpp"
 #include "misc/ioer.hpp"
@@ -139,11 +140,19 @@ void run()
     double randnum;
     const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     uint64_t N;
-    double Usum(0.0), Wsum(0.0), rhosum(0.0), Ksum(0.0), kT_sum(0.0), Psum(0.0);
+
+    // observable map
     uint64_t Nsamp(0);
+    map<string, double> obs;
+    vector<string> obs_keys { "rhosum", "Usum", "Wsum", "kTsum"};
+    for (const auto& key : obs_keys) {
+        obs[key] = 0.0;
+    }
+
+    // loop
     out.info("# start MD looping ... ");
     out.info("# shuffle frac = ", shuffle_frac, " create frac = ", create_frac);
-    out.tabout("# Nsamp", "<rho>", "<U>", "<P>", "<kT>", "rho", "U", "W");
+    out.tabout("# Nsamp", "<rho>", "<U>", "<P>", "<kT>");
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         N = x.size() / 3;
         // evolve
@@ -176,34 +185,28 @@ void run()
         N = x.size() / 3;
         if (N > 0) {
             //vrec.insert(vrec.end(), v.begin(), v.end());
-            rhosum += N / para.V;
-            Usum += U;
-            Wsum += W;
-            kT_sum += 2 * cal_Ek(v, para.mass) / N / 3.0;
+            obs["rhosum"] += N / para.V;
+            obs["Usum"] += U;
+            obs["Wsum"] += W;
+            obs["kTsum"] += 2.0 * cal_Ek(v, para.mass) / 3.0 / N;
         }
         // output & save
         if (istep % para.Anastep == 0) {
             // print statistics & save configure
-            out.tabout(Nsamp, 
-                    rhosum / Nsamp,
-                    Usum / Nsamp / para.V / (rhosum / Nsamp),
-                    rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V,
-                    kT_sum / Nsamp,
-                    N / para.V,
-                    U / N,
-                    W / N
+            out.tabout(Nsamp,
+                    obs["rhosum"] / Nsamp,
+                    obs["Usum"] / para.V / obs["rhosum"],
+                    obs["rhosum"] / Nsamp * obs["kTsum"] / Nsamp + obs["Wsum"] / Nsamp / para.V,
+                    obs["kTsum"] / Nsamp
                     );
             write_conf(x, v, para.conffile);
         }
     } 
-    out.tabout(Nsamp, 
-            rhosum / Nsamp,
-            Usum / Nsamp / para.V / (rhosum / Nsamp),
-            rhosum / Nsamp * para.kT + Wsum / Nsamp / para.V,
-            kT_sum / Nsamp,
-            N / para.V,
-            U / N,
-            W / N
+    out.tabout(Nsamp,
+            obs["rhosum"] / Nsamp,
+            obs["Usum"] / para.V / obs["rhosum"],
+            obs["rhosum"] / Nsamp * obs["kTsum"] / Nsamp + obs["Wsum"] / Nsamp / para.V,
+            obs["kTsum"] / Nsamp
             );
     write_conf(x, v, para.conffile);
     /*
@@ -214,16 +217,18 @@ void run()
     */
 
     //final output
-    const double avgrho(rhosum / Nsamp);
-    const double avgU(Usum / Nsamp);
-    const double avgW(Wsum / Nsamp);
+    const double avgrho(obs["rhosum"] / Nsamp);
+    const double avgU(obs["Usum"] / Nsamp);
+    const double avgW(obs["Wsum"] / Nsamp);
+    const double avgkT(obs["kTsum"] / Nsamp);
 
     out.drawline('\n', 1);
     out.tabout("# kT = ", para.kT);
     out.tabout("# mu = ", para.mu);
     out.tabout("# <rho> = ", avgrho);
+    out.tabout("# <kT> = ", avgkT);
     out.tabout("# <U> = ", avgU / para.V / avgrho);
-    out.tabout("# <P> = ", avgrho * para.kT + avgW / para.V);
+    out.tabout("# <P> = ", avgrho * avgkT + avgW / para.V);
     out.drawline('\n', 1);
 
     out.info("# --- PROGRAM ENDS --- ");
