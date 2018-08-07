@@ -135,7 +135,7 @@ void run()
     out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
 
     // main MD part
-    //vector<double> vrec;
+    vector<double> vrec;
     double randnum;
     const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     uint64_t N;
@@ -150,11 +150,9 @@ void run()
         if (not x.empty()) {
             evolve(x, v, U, W, para.L, para.dt, para.mass, para.kT, para.nu,
                     para.rc, Urc, ULRC0, WLRC0);
-            //berendsen_thermostat(v, para.mass, para.kT, para.nu, para.dt);
             andersen_thermostat(v, para.mass, para.kT, para.nu, para.dt);
         }
 
-        /*
         // exchange
         if (istep % para.K == 0) {
             if (randomer::rand() < 0.5) {
@@ -172,7 +170,6 @@ void run()
                 }
             }
         }
-        */
 
         // statistics
         Nsamp += 1;
@@ -209,7 +206,12 @@ void run()
             W / N
             );
     write_conf(x, v, para.conffile);
-    //write_conf(x, vrec, para.conffile);
+    /*
+    // save vrec
+    ioer::h5file_t f("vrec.dat", ios::out);
+    f.create_dataset("vrec", vrec);
+    f.close();
+    */
 
     //final output
     const double avgrho(rhosum / Nsamp);

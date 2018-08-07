@@ -178,6 +178,12 @@ void evolve(std::vector<double>& x, std::vector<double>& v,
     F.assign(_3N, 0.0);
     all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
     v = v + 0.5 / mass * dt * F;
+
+    for (auto& xi : x) {
+        if (xi > L / 2 or xi < -L / 2) {
+            ioer::info("out of range!!!!");
+        }
+    }
 }
 
 #endif
