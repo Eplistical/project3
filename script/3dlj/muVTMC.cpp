@@ -44,12 +44,7 @@ void init_conf(vector<double>& x, vector<double>& v,
             }
         }
     }
-    /*
-    x = randomer::vrand(3 * para.N0, -0.5 * para.L, 0.5 * para.L);
-    */
-
     // init v as empty
-    //v = randomer::maxwell_dist(mass, kT, N0);
     v.clear();
 }
 
@@ -89,6 +84,7 @@ void run()
     out.set_precision(6);
 
     // show para
+    out.info("# --- CONFIG PARAMETERS --- ");
     out.keyval()
         ("# LJmodel", para.LJmodel)
         ("# V", para.V)
@@ -100,11 +96,11 @@ void run()
         ("# mu", para.mu)
         ("# mass", para.mass)
         ("# Nstep", para.Nstep)
+        ("# Anastep", para.Anastep)
         ("# dxmax", para.dxmax)
         ("# prepinit", para.prepinit)
         ("# move_frac", para.move_frac)
         ("# conffile", para.conffile)
-        ("# Anastep", para.Anastep)
         ("# random_seed", para.random_seed)
         ;
     out.info("# --- PROGRAM BEGINS --- ");
@@ -181,7 +177,6 @@ void run()
         }
         // output & save
         if (istep % para.Anastep == 0) {
-            // print statistics & save configure
             out.tabout(Nsamp, 
                     obs["rhosum"] / Nsamp,
                     obs["Usum"] / para.V / obs["rhosum"],

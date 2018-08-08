@@ -46,10 +46,6 @@ void init_conf(vector<double>& x, vector<double>& v,
             }
         }
     }
-    /*
-    x = randomer::vrand(3 * para.N0, -0.5 * para.L, 0.5 * para.L);
-    */
-
     // init v
     v = randomer::maxwell_dist(mass, kT, N0);
 }
@@ -105,9 +101,9 @@ void run()
         ("# rc", para.rc)
         ("# kT", para.kT)
         ("# mu", para.mu)
+        ("# mass", para.mass)
         ("# Nstep", para.Nstep)
         ("# Anastep", para.Anastep)
-        ("# mass", para.mass)
         ("# dt", para.dt)
         ("# nu", para.nu)
         ("# K", para.K)
@@ -136,7 +132,6 @@ void run()
     out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
 
     // main MD part
-    vector<double> vrec;
     double randnum;
     const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     uint64_t N;
@@ -184,7 +179,6 @@ void run()
         Nsamp += 1;
         N = x.size() / 3;
         if (N > 0) {
-            //vrec.insert(vrec.end(), v.begin(), v.end());
             obs["rhosum"] += N / para.V;
             obs["Usum"] += U;
             obs["Wsum"] += W;
@@ -192,7 +186,6 @@ void run()
         }
         // output & save
         if (istep % para.Anastep == 0) {
-            // print statistics & save configure
             out.tabout(Nsamp,
                     obs["rhosum"] / Nsamp,
                     obs["Usum"] / para.V / obs["rhosum"],
@@ -209,12 +202,6 @@ void run()
             obs["kTsum"] / Nsamp
             );
     write_conf(x, v, para.conffile);
-    /*
-    // save vrec
-    ioer::h5file_t f("vrec.dat", ios::out);
-    f.create_dataset("vrec", vrec);
-    f.close();
-    */
 
     //final output
     const double avgrho(obs["rhosum"] / Nsamp);
