@@ -46,30 +46,29 @@ inline bool decide(double x) {
         return false;
 }
 
-bool shuffle(std::vector<double>& x, const uint64_t ofs,
-        double& U, double& W,
-        const double kT, const double dxmax, const double L,
-        const double rc, const double Urc,
-        const double ULRC0, const double WLRC0)
+bool shuffle(std::vector<double>& x, const uint64_t idx,
+        const uint64_t Ntype, const std::vector<uint64_t> type, 
+        const double kT, const double dxmax,
+        const std::vector<double>& sigma, const std::vector<double>& epsilon, 
+        const std::vector<double>& rc, const std::vector<double>& Urc, 
+        const std::vector<double>& L, 
+        const std::vector<double>& ULRC, const std::vector<double>& WLRC,
+        double& U, double& W)
 {
-    // shuffle the particle x[ofs:ofs+3] w/ MC algorithm
-    const uint64_t _3N = x.size();
-    assert (ofs % 3 == 0 and ofs < _3N);
-
+    // shuffle the particle idx w/ MC algorithm
     double U0, W0, U1, W1;
     double dU, dW;
-    std::vector<double> F;
 
     std::vector<double> oldx(3);
-    one_energy(x, ofs, rc, Urc, L, U0, W0, &F[0]);
+    one_energy(x, idx, Ntype, type, sigma, epsilon, rc, Urc, L, U0, W0, nullptr);
 
     for (int k(0); k < 3; ++k) {
-        oldx[k] = x[ofs + k];
-        x[ofs + k] += randomer::rand(-dxmax, dxmax);
-        x[ofs + k] -= L * round(x[ofs + k] / L); // periodic condition
+        oldx[k] = x[k + 3 * idx];
+        x[k + 3 * idx] += randomer::rand(-dxmax, dxmax);
+        x[k + 3 * idx] -= L[k] * round(x[k + 3 * idx] / L[k]); // periodic condition
     }
     
-    one_energy(x, ofs, rc, Urc, L, U1, W1, &F[0]);
+    one_energy(x, idx, Ntype, type, sigma, epsilon, rc, Urc, L, U1, W1, nullptr);
 
     dU = U1 - U0;
     dW = W1 - W0;
@@ -80,11 +79,12 @@ bool shuffle(std::vector<double>& x, const uint64_t ofs,
         return true;
     }
     else {
-        copy(oldx.begin(), oldx.end(), x.begin() + ofs);
+        copy(oldx.begin(), oldx.end(), x.begin() + 3 * idx);
         return false;
     }
 }
 
+/*
 bool create(std::vector<double>& x, std::vector<double>& v, 
         const std::vector<double>& newx, const std::vector<double>& newv,
         double& U, double& W,
@@ -185,5 +185,6 @@ void evolve(std::vector<double>& x, std::vector<double>& v,
         }
     }
 }
+*/
 
 #endif
