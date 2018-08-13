@@ -116,13 +116,13 @@ inline void all_energy(const std::vector<double>& x,
         }
 
         // long range correction
-        std::vector<double> N(Ntype);
-        for (int i(0); i < Ntot; ++i) {
+        std::vector<uint64_t> N(Ntype);
+        for (uint64_t i(0); i < Ntot; ++i) {
             N[type[i]] += 1;
         }
 
-        for (int i(0); i < Ntype; ++i) {
-            for (int j(0); j < Ntype; ++j) {
+        for (uint64_t i(0); i < Ntype; ++i) {
+            for (uint64_t j(0); j < Ntype; ++j) {
                 U += ULRC[i + j * Ntype] * N[i] * N[j];
                 W += WLRC[i + j * Ntype] * N[i] * N[j];
             }
@@ -130,49 +130,74 @@ inline void all_energy(const std::vector<double>& x,
     }
 }
 
-/*
-inline void potin(const std::vector<double>& x, const std::vector<double>& newx, 
-        const double rc, const double Urc, const double L,
-        const double ULRC0, const double WLRC0, 
-        double& dU, double& dW)
+inline void potin(const std::vector<double>& x, 
+        const uint64_t Ntype, const std::vector<uint64_t>& type,
+        const std::vector<double>& newx, 
+        const uint64_t newtype,
+        const std::vector<double>& sigma, const std::vector<double>& epsilon, 
+        const std::vector<double>& rc, const std::vector<double>& Urc,
+        const std::vector<double>& L, 
+        const std::vector<double>& ULRC, const std::vector<double>& WLRC,
+        double& U, double& W)
 {
     // calc dU & dW for a new particle newx
-    const uint64_t _3N(x.size());
-    const uint64_t N(_3N / 3);
+    const uint64_t Ntot(x.size() / 3);
 
     dU = 0.0;
     dW = 0.0;
 
     double Uij, Wij;
-    for (uint64_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
-        if ( pair_energy(&newx[0], &x[ofs_i], rc, Urc, L, Uij, Wij, nullptr) ) {
+    uint64_t ijcoup;
+
+    for (uint64_t i(0); i < Ntot; ++i) {
+        ijcoup = newtype + type[i] * Ntype;
+        if ( pair_energy(&newx[0], &x[i * 3], sigma[ijcoup], epsilon[ijcoup],
+                    rc[ijcoup], Urc[ijcoup], L, Uij, Wij, nullptr) ) 
+        {
             dU += Uij;
             dW += Wij;
         }
     }
 
-    dU += (2.0 * N + 1.0) * ULRC0;
-    dW += (2.0 * N + 1.0) * WLRC0;
+    // dU, dW due to change of particle number
+    for (uint64_t itype(0); itype < Ntype; ++itype) {
+        ijcoup = newtype + itype * Ntype;
+        dU += ULRC[ijcoup] * 2;
+        dW += WLRC[ijcoup] * 2;
+    }
+    dU += ULRC[newtype + newtype * Ntype];
+    dW += WLRC[newtype + newtype * Ntype];
 }
 
-inline void potout(const std::vector<double>& x, const uint64_t ofs,
-        const double rc, const double Urc, const double L,
-        const double ULRC0, const double WLRC0, 
+inline void potout(const std::vector<double>& x, const uint64_t idx,
+        const uint64_t Ntype, const std::vector<uint64_t>& type,
+        const std::vector<double>& sigma, const std::vector<double>& epsilon, 
+        const std::vector<double>& rc, const std::vector<double>& Urc,
+        const std::vector<double>& L, 
+        const std::vector<double>& ULRC, const std::vector<double>& WLRC,
         double& dU, double& dW)
 {
     // calc dU & dW for removing an existing particle x[ofs]
-    assert(not x.empty());
     const uint64_t N(x.size() / 3);
+    uint64_t ijcoup;
 
     dU = 0.0;
     dW = 0.0;
 
-    one_energy(x, ofs, rc, Urc, L, dU, dW, nullptr);
+    one_energy(x, idx, Ntype, type, sigma, epsilon,  rc, Urc, L, dU, dW, nullptr);
 
-    dU = -dU - (2.0 * N - 1.0) * ULRC0;
-    dW = -dW - (2.0 * N - 1.0) * WLRC0;
+    dU = -dU;
+    dW = -dW;
+
+    // dU, dW due to change of particle number
+    for (uint64_t itype(0); itype < Ntype; ++itype) {
+        ijcoup = newtype + itype * Ntype;
+        dU -= ULRC[ijcoup] * 2;
+        dW -= WLRC[ijcoup] * 2;
+    }
+    dU += ULRC[newtype + newtype * Ntype];
+    dW += WLRC[newtype + newtype * Ntype];
 }
-*/
 
 void tail_correction(const uint64_t Ntype,
         const std::vector<double>& rc, 

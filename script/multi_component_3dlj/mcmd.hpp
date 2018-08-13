@@ -84,18 +84,18 @@ bool shuffle(std::vector<double>& x, const uint64_t idx,
     }
 }
 
-/*
 bool create(std::vector<double>& x, std::vector<double>& v, 
-        const std::vector<double>& newx, const std::vector<double>& newv,
-        double& U, double& W,
-        const double rc, const double Urc,
-        const double L, const double V,
-        const double kT, const double mu,
-        const double ULRC0, const double WLRC0)
+        const uint64_t Ntype, const std::vector<uint64_t>& type,
+        const std::vector<double>& newx, const std::vector<double>& newv, 
+        const uint64_t newtype,
+        const std::vector<double>& sigma, const std::vector<double>& epsilon, 
+        const std::vector<double>& rc, const std::vector<double>& Urc,
+        const std::vector<double>& L, const double kT, const std::vector<double>& mu, 
+        const std::vector<double>& ULRC, const std::vector<double>& WLRC,
+        double& U, double& W)
 {
     // attempt to create a new particle at newx w/ velocity newv
-    const uint64_t _3N(x.size());
-    const uint64_t N(_3N / 3);
+    const uint64_t Ntot(x.size() / 3);
     double dU, dW;
     double dCB;
 
@@ -114,6 +114,7 @@ bool create(std::vector<double>& x, std::vector<double>& v,
     return false;
 }
 
+/*
 bool destruct(std::vector<double>& x, std::vector<double>& v,
         const uint64_t ofs,
         double& U, double& W,

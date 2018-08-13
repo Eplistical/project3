@@ -183,11 +183,34 @@ void run()
 
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         Ntot = sum(N);
+        randnum = randomer::rand();
+
         // shuffle
+        /*
         if (not x.empty()) {
             uint64_t idx(randomer::choice(Ntot));
             Naccept += shuffle(x, idx, para.Ntype, type, para.kT, para.dxmax, para.sigma, para.epsilon, 
                     para.rc, Urc, para.L, ULRC, WLRC, U, W);
+        }
+        */
+        if (randnum < 0.5) {
+            // create
+            uint64_t newtype(randomer::choice(para.Ntype));
+            vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
+            vector<double> newv(randomer::maxwell_dist(para.mass[newtype], para.kT);
+            Naccept += create(x, v, para.Ntype, type, newx, newv, newtype, 
+                    para.sigma, para.epsilon, para.rc, Urc, para.L, para.kT, para.mu, 
+                    ULRC, WLRC, U, W);
+        }
+        else {
+            // destruct
+            vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
+            if (not Vc_idx.empty()) {
+                uint64_t idx(randomer::choice(Vc_idx));
+                Naccept += destruct(x, v, para.Ntype, type, idx, 
+                        para.sigma, para.epsilon, para.rc, Urc, para.L, para.kT, para.mu, 
+                        ULRC, WLRC, U, W);
+            }
         }
         Nmove += 1;
 
