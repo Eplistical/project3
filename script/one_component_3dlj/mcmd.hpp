@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 #include "misc/randomer.hpp"
+#include "misc/crasher.hpp"
 #include "energy.hpp"
 
 // MC, MD functions
@@ -180,9 +181,7 @@ void evolve(std::vector<double>& x, std::vector<double>& v,
     v = v + 0.5 / mass * dt * F;
 
     for (auto& xi : x) {
-        if (xi > L / 2 or xi < -L / 2) {
-            ioer::info("out of range!!!!");
-        }
+        misc::crasher::confirm<>(xi <= 0.5 * L and xi >= -0.5 * L, "out of range!");
     }
 }
 

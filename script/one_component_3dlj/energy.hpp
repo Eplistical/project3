@@ -122,7 +122,6 @@ inline void potin(const std::vector<double>& x, const std::vector<double>& newx,
         double& dU, double& dW)
 {
     // calc dU & dW for a new particle newx
-    std::vector<double> F;
     const uint64_t _3N(x.size());
     const uint64_t N(_3N / 3);
 
@@ -131,7 +130,7 @@ inline void potin(const std::vector<double>& x, const std::vector<double>& newx,
 
     double Uij, Wij;
     for (uint64_t ofs_i(0); ofs_i < _3N; ofs_i += 3) {
-        if ( pair_energy(&newx[0], &x[ofs_i], rc, Urc, L, Uij, Wij, &F[0]) ) {
+        if ( pair_energy(&newx[0], &x[ofs_i], rc, Urc, L, Uij, Wij, nullptr) ) {
             dU += Uij;
             dW += Wij;
         }
@@ -149,12 +148,11 @@ inline void potout(const std::vector<double>& x, const uint64_t ofs,
     // calc dU & dW for removing an existing particle x[ofs]
     assert(not x.empty());
     const uint64_t N(x.size() / 3);
-    std::vector<double> F;
 
     dU = 0.0;
     dW = 0.0;
 
-    one_energy(x, ofs, rc, Urc, L, dU, dW, &F[0]);
+    one_energy(x, ofs, rc, Urc, L, dU, dW, nullptr);
 
     dU = -dU - (2.0 * N - 1.0) * ULRC0;
     dW = -dW - (2.0 * N - 1.0) * WLRC0;
