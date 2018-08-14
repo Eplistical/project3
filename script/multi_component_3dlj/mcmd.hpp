@@ -9,16 +9,16 @@
 
 // MC, MD functions
 
-inline void rand_in_Vc(const uint64_t Ntype, const std::vector<double>& mass, const double kT, const std::vector<double>& Lc, 
-        uint64_t& newtype, std::vector<double>& newx, std::vector<double>& newv) 
+inline void rand_in_Vc(const double mass, const double kT, const std::vector<double>& Lc, 
+std::vector<double>& newx, std::vector<double>& newv) 
 {
-    //newtype = randomer::choice(Ntype);
-    newtype = 0;
-    //newv = randomer::maxwell_dist(para.mass[newtype], kT);
     newx.resize(3);
     for (int k(0); k < 3; ++k) {
         newx[k] = randomer::rand(-0.5 * Lc[k], 0.5 * Lc[k]);
     }
+
+    newv.clear();
+    //newv = randomer::maxwell_dist(para.mass[newtype], kT);
 }
 
 inline bool is_in_Vc(const double* x, const std::vector<double>& Lc) {
@@ -29,34 +29,19 @@ inline bool is_in_Vc(const double* x, const std::vector<double>& Lc) {
     return true;
 }
 
-inline std::vector<uint64_t> get_Vc_idx(const std::vector<double>& x, const std::vector<double>& Lc) 
+inline std::vector<uint64_t> get_Vc_idx(const uint64_t thetype, const std::vector<uint64_t>& type, 
+        const std::vector<double>& x, const std::vector<double>& Lc)
 {
-    // get indices for particles that are in the control colume
-    const uint64_t Ntot(x.size() / 3);
-
+    // get ptcl number for thetype molecule in the control volume
+    const uint64_t Ntot(type.size());
     std::vector<uint64_t> Vc_idx;
     Vc_idx.reserve(Ntot);
-
     for (uint64_t i(0); i < Ntot; ++i) {
-        if (is_in_Vc(&x[3 * i], Lc)) {
+        if ((type[i] == thetype) and (is_in_Vc(&x[3 * i], Lc))) {
             Vc_idx.push_back(i);
         }
     }
     return Vc_idx;
-}
-
-inline uint64_t get_Nc(const uint64_t thetype, const std::vector<uint64_t>& type, 
-        const std::vector<double>& x, const std::vector<double>& Lc)
-{
-    // get ptcl number for thetype molecule in the control volume
-    uint64_t Nc(0);
-    const uint64_t Ntot(type.size());
-    for (uint64_t i(0); i < Ntot; ++i) {
-        if ((type[i] == thetype) and (is_in_Vc(&x[3 * i], Lc))) {
-            Nc += 1;
-        }
-    }
-    return Nc;
 }
 
 inline std::vector<uint64_t> get_N(const uint64_t Ntype, const std::vector<uint64_t>& type)
@@ -139,8 +124,8 @@ bool create(std::vector<double>& x, std::vector<double>& v,
 
     potin(x, newx, type, newtype, Ntype, N,
             sigma, epsilon, rc, Urc, L, ULRC, WLRC, dU, dW);
-
     dCB = dU / kT - mu[newtype] / kT  - log(Vc / (Nc + 1));
+
     if (decide(dCB)) {
         type.push_back(newtype);
         x.insert(x.end(), newx.begin(), newx.begin() + 3);
@@ -172,7 +157,6 @@ bool destruct(std::vector<double>& x, std::vector<double>& v,
 
     potout(x, idx, type, Ntype, N,
             sigma, epsilon, rc, Urc, L, ULRC, WLRC, dU, dW);
-
     dDB = dU / kT + mu[idxtype] / kT - log(Nc / Vc);
     if (decide(dDB)) {
         type.erase(type.begin() + idx);

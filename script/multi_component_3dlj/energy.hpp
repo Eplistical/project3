@@ -11,6 +11,9 @@
 inline void raw_pair_energy(const double r2, const double sigma, const double epsilon,
         double& U, double& W) 
 {
+    U = 0.0;
+    W = 0.0;
+    return ;
     // calc pair energy for r2
     double ir2, ir6;
     ir2 = sigma * sigma / r2;
@@ -47,6 +50,61 @@ inline bool pair_energy(const double* x1, const double* x2,
     }
     else {
         return false;
+    }
+}
+
+void tail_correction(const uint64_t Ntype,
+        const std::vector<double>& rc, 
+        const std::vector<double>& sigma, 
+        const std::vector<double>& epsilon, 
+        const double V, const std::string& LJmodel,
+        std::vector<double>& Urc, 
+        std::vector<double>& ULRC, 
+        std::vector<double>& WLRC) 
+{
+    Urc.assign(Ntype * Ntype, 0.0);
+    ULRC.assign(Ntype * Ntype, 0.0);
+    Urc.assign(Ntype * Ntype, 0.0);
+    return ;
+    double irc3, irc9;
+    double sig, eps;
+    uint64_t ijcoup;
+    // calcualte tail correction energy
+    if (LJmodel == "c") {
+        // cutoff only
+        for (uint64_t i(0); i < Ntype; ++i) {
+            for (uint64_t j(0); j < Ntype; ++j) {
+                ijcoup = i + j * Ntype;
+                sig = sigma[ijcoup];
+                eps = epsilon[ijcoup];
+                irc3 = pow(sig / rc[ijcoup], 3);
+                irc9 = irc3 * irc3 * irc3;
+
+                ULRC[ijcoup] = eps * (8.0 / 9.0 * M_PI / V * pow(sig, 3) * (irc9 - 3.0 * irc3));
+                WLRC[ijcoup] = eps * (32.0 / 9.0 * M_PI / V * pow(sig, 3) * (irc9 - 1.5 * irc3));
+                Urc[ijcoup] = 0.0;
+            }
+        }
+    }
+    else if (LJmodel == "cs") {
+        // cutoff + shifted
+        double irc3, irc9;
+        double sig, eps;
+        uint64_t ijcoup;
+        double Wrc;
+        for (uint64_t i(0); i < Ntype; ++i) {
+            for (uint64_t j(0); j < Ntype; ++j) {
+                ijcoup = i + j * Ntype;
+                sig = sigma[ijcoup];
+                eps = epsilon[ijcoup];
+                irc3 = pow(sig / rc[ijcoup], 3);
+                irc9 = irc3 * irc3 * irc3;
+
+                ULRC[ijcoup] = eps * (32.0 / 9.0 * M_PI / V * pow(sig, 3) * (irc9 - 1.5 * irc3));
+                WLRC[ijcoup] = eps * (32.0 / 9.0 * M_PI / V * pow(sig, 3) * (irc9 - 1.5 * irc3));
+                raw_pair_energy(rc[ijcoup] * rc[ijcoup], sig, eps, Urc[ijcoup], Wrc);
+            }
+        }
     }
 }
 
@@ -197,57 +255,6 @@ inline void potout(const std::vector<double>& x, const uint64_t idx,
     }
     dU += ULRC[idxtype + idxtype * Ntype];
     dW += WLRC[idxtype + idxtype * Ntype];
-}
-
-void tail_correction(const uint64_t Ntype,
-        const std::vector<double>& rc, 
-        const std::vector<double>& sigma, 
-        const std::vector<double>& epsilon, 
-        const double V, const std::string& LJmodel,
-        std::vector<double>& Urc, 
-        std::vector<double>& ULRC, 
-        std::vector<double>& WLRC) 
-{
-    double irc3, irc9;
-    double sig, eps;
-    uint64_t ijcoup;
-    // calcualte tail correction energy
-    if (LJmodel == "c") {
-        // cutoff only
-        for (uint64_t i(0); i < Ntype; ++i) {
-            for (uint64_t j(0); j < Ntype; ++j) {
-                ijcoup = i + j * Ntype;
-                sig = sigma[ijcoup];
-                eps = epsilon[ijcoup];
-                irc3 = pow(sig / rc[ijcoup], 3);
-                irc9 = irc3 * irc3 * irc3;
-
-                ULRC[ijcoup] = eps * (8.0 / 9.0 * M_PI / V * pow(sig, 3) * (irc9 - 3.0 * irc3));
-                WLRC[ijcoup] = eps * (32.0 / 9.0 * M_PI / V * pow(sig, 3) * (irc9 - 1.5 * irc3));
-                Urc[ijcoup] = 0.0;
-            }
-        }
-    }
-    else if (LJmodel == "cs") {
-        // cutoff + shifted
-        double irc3, irc9;
-        double sig, eps;
-        uint64_t ijcoup;
-        double Wrc;
-        for (uint64_t i(0); i < Ntype; ++i) {
-            for (uint64_t j(0); j < Ntype; ++j) {
-                ijcoup = i + j * Ntype;
-                sig = sigma[ijcoup];
-                eps = epsilon[ijcoup];
-                irc3 = pow(sig / rc[ijcoup], 3);
-                irc9 = irc3 * irc3 * irc3;
-
-                ULRC[ijcoup] = eps * (32.0 / 9.0 * M_PI / V * pow(sig, 3) * (irc9 - 1.5 * irc3));
-                WLRC[ijcoup] = eps * (32.0 / 9.0 * M_PI / V * pow(sig, 3) * (irc9 - 1.5 * irc3));
-                raw_pair_energy(rc[ijcoup] * rc[ijcoup], sig, eps, Urc[ijcoup], Wrc);
-            }
-        }
-    }
 }
 
 inline double cal_Ek(const std::vector<double>& v, 

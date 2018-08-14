@@ -34,7 +34,7 @@ void init_conf(vector<double>& x, vector<double>& v,
         vector<uint64_t> tmp(N0[i], i);
         type.insert(type.end(), tmp.begin(), tmp.end());
     }
-    //shuffle(type.begin(), type.end(), randomer::rng);
+    shuffle(type.begin(), type.end(), randomer::rng);
 
     // init x
     x.resize(Ntot * 3);
@@ -180,7 +180,6 @@ void run()
     Ntot = sum(N);
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         randnum = randomer::rand();
-
         // shuffle
         /*
         if (not x.empty()) {
@@ -189,30 +188,29 @@ void run()
                     para.rc, Urc, para.L, ULRC, WLRC, U, W);
         }
         */
+
+        const uint64_t thetype(randomer::choice(para.Ntype));
+        const vector<uint64_t> Vc_idx(get_Vc_idx(thetype, type, x, para.Lc));
+        Nc = Vc_idx.size();
         if (randnum < 0.5) {
             // create
-            uint64_t newtype;
             vector<double> newx, newv;
-            rand_in_Vc(para.Ntype, para.mass, para.kT, para.Lc, newtype, newx, newv);
-            Nc = get_Nc(newtype, type, x, para.Lc);
-            Naccept += create(x, v, type, newx, newv, newtype, para.Ntype, N, 
+            rand_in_Vc(para.mass[thetype], para.kT, para.Lc, newx, newv);
+            Naccept += create(x, v, type, newx, newv, thetype,
+                    para.Ntype, N, 
                     para.sigma, para.epsilon, para.rc, Urc, 
                     para.L, para.kT, para.mu, para.Vc, Nc,
                     ULRC, WLRC, U, W);
-            Nc = get_Nc(newtype, type, x, para.Lc);
         }
         else {
             // destruct
-            vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
             if (not Vc_idx.empty()) {
                 uint64_t idx(randomer::choice(Vc_idx));
-                Nc = get_Nc(type[idx], type, x, para.Lc);
                 Naccept += destruct(x, v, type, idx, 
                         para.Ntype, N,
                         para.sigma, para.epsilon, para.rc, Urc,
                         para.L, para.kT, para.mu, para.Vc, Nc,
                         ULRC, WLRC, U, W);
-                Nc = get_Nc(type[idx], type, x, para.Lc);
             }
         }
         Nmove += 1;
@@ -245,7 +243,7 @@ void run()
             for (int i(0); i < para.Ntype; ++i) {
                 out.tabout_nonewline(obs[misc::fmtstring("rhosum%d", i)] / Nsamp);
             }
-            out.newline();
+            out.tabout(rhosum / Nsamp);
 
             // save conf
             write_conf(x, type, para.conffile);
