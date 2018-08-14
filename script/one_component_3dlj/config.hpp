@@ -96,7 +96,7 @@ bool argparse(int argc, char** argv, bool output_flag = true)
         ("random_seed", po::value<uint64_t>(&para.random_seed), "random seed, non-negative integer")
         ;   
     po::variables_map vm; 
-    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::store(po::parse_command_line(argc, argv, desc, po::command_line_style::unix_style ^ po::command_line_style::allow_short), vm);
     po::notify(vm);    
 
     if (vm.count("help")) {
