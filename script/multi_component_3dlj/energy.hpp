@@ -130,15 +130,14 @@ inline void all_energy(const std::vector<double>& x,
     }
 }
 
-inline void potin(const std::vector<double>& x, 
-        const uint64_t Ntype, const std::vector<uint64_t>& type,
-        const std::vector<double>& newx, 
-        const uint64_t newtype,
+inline void potin(const std::vector<double>& x, const std::vector<double>& newx, 
+        const std::vector<uint64_t>& type, const uint64_t newtype,
+        const uint64_t Ntype, const vector<uint64_t>& N,
         const std::vector<double>& sigma, const std::vector<double>& epsilon, 
         const std::vector<double>& rc, const std::vector<double>& Urc,
         const std::vector<double>& L, 
         const std::vector<double>& ULRC, const std::vector<double>& WLRC,
-        double& U, double& W)
+        double& dU, double& dW)
 {
     // calc dU & dW for a new particle newx
     const uint64_t Ntot(x.size() / 3);
@@ -162,15 +161,16 @@ inline void potin(const std::vector<double>& x,
     // dU, dW due to change of particle number
     for (uint64_t itype(0); itype < Ntype; ++itype) {
         ijcoup = newtype + itype * Ntype;
-        dU += ULRC[ijcoup] * 2;
-        dW += WLRC[ijcoup] * 2;
+        dU += ULRC[ijcoup] * 2 * N[itype];
+        dW += WLRC[ijcoup] * 2 * N[itype];
     }
     dU += ULRC[newtype + newtype * Ntype];
     dW += WLRC[newtype + newtype * Ntype];
 }
 
 inline void potout(const std::vector<double>& x, const uint64_t idx,
-        const uint64_t Ntype, const std::vector<uint64_t>& type,
+        const std::vector<uint64_t>& type, 
+        const uint64_t Ntype, const vector<uint64_t>& N,
         const std::vector<double>& sigma, const std::vector<double>& epsilon, 
         const std::vector<double>& rc, const std::vector<double>& Urc,
         const std::vector<double>& L, 
@@ -178,7 +178,7 @@ inline void potout(const std::vector<double>& x, const uint64_t idx,
         double& dU, double& dW)
 {
     // calc dU & dW for removing an existing particle x[ofs]
-    const uint64_t N(x.size() / 3);
+    const uint64_t idxtype(type[idx]);
     uint64_t ijcoup;
 
     dU = 0.0;
@@ -191,12 +191,12 @@ inline void potout(const std::vector<double>& x, const uint64_t idx,
 
     // dU, dW due to change of particle number
     for (uint64_t itype(0); itype < Ntype; ++itype) {
-        ijcoup = newtype + itype * Ntype;
-        dU -= ULRC[ijcoup] * 2;
-        dW -= WLRC[ijcoup] * 2;
+        ijcoup = idxtype + itype * Ntype;
+        dU -= ULRC[ijcoup] * 2 * N[itype];
+        dW -= WLRC[ijcoup] * 2 * N[itype];
     }
-    dU += ULRC[newtype + newtype * Ntype];
-    dW += WLRC[newtype + newtype * Ntype];
+    dU += ULRC[idxtype + idxtype * Ntype];
+    dW += WLRC[idxtype + idxtype * Ntype];
 }
 
 void tail_correction(const uint64_t Ntype,

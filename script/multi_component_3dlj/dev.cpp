@@ -61,11 +61,14 @@ void init_conf(vector<double>& x, vector<double>& v,
     }
 
     // init v
+    v.clear();
+    /*
     v.resize(Ntot * 3);
     for (uint64_t i(0); i < Ntot; ++i) {
         vector<double> tmp(randomer::maxwell_dist(mass[type[i]], kT));
         copy(tmp.begin(), tmp.begin() + 3, v.begin() + i * 3);
     }
+    */
 }
 
 void read_conf(vector<double>& x, vector<uint64_t>& type, const string& conffile) 
@@ -85,16 +88,6 @@ inline void write_conf(const vector<double>& x, const vector<uint64_t>& type, co
     out.create_attr("para", "program", program_name);
     out.create_dataset("x", x, "type", type);
     out.close();
-}
-
-
-inline vector<uint64_t> get_N(const uint64_t Ntype, const vector<uint64_t>& type)
-{
-    vector<uint64_t> N(Ntype);
-    for (const uint64_t& i : type) {
-        N[i] += 1;
-    }
-    return N;
 }
 
 // run
@@ -181,8 +174,11 @@ void run()
     }
     out.newline();
 
+    double randnum;
+    uint64_t Nc;
+    N = get_N(para.Ntype, type);
+    Ntot = sum(N);
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
-        Ntot = sum(N);
         randnum = randomer::rand();
 
         // shuffle
@@ -195,27 +191,35 @@ void run()
         */
         if (randnum < 0.5) {
             // create
-            uint64_t newtype(randomer::choice(para.Ntype));
-            vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
-            vector<double> newv(randomer::maxwell_dist(para.mass[newtype], para.kT);
-            Naccept += create(x, v, para.Ntype, type, newx, newv, newtype, 
-                    para.sigma, para.epsilon, para.rc, Urc, para.L, para.kT, para.mu, 
+            uint64_t newtype;
+            vector<double> newx, newv;
+            rand_in_Vc(para.Ntype, para.mass, para.kT, para.Lc, newtype, newx, newv);
+            Nc = get_Nc(newtype, type, x, para.Lc);
+            Naccept += create(x, v, type, newx, newv, newtype, para.Ntype, N, 
+                    para.sigma, para.epsilon, para.rc, Urc, 
+                    para.L, para.kT, para.mu, para.Vc, Nc,
                     ULRC, WLRC, U, W);
+            Nc = get_Nc(newtype, type, x, para.Lc);
         }
         else {
             // destruct
             vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
             if (not Vc_idx.empty()) {
                 uint64_t idx(randomer::choice(Vc_idx));
-                Naccept += destruct(x, v, para.Ntype, type, idx, 
-                        para.sigma, para.epsilon, para.rc, Urc, para.L, para.kT, para.mu, 
+                Nc = get_Nc(type[idx], type, x, para.Lc);
+                Naccept += destruct(x, v, type, idx, 
+                        para.Ntype, N,
+                        para.sigma, para.epsilon, para.rc, Urc,
+                        para.L, para.kT, para.mu, para.Vc, Nc,
                         ULRC, WLRC, U, W);
+                Nc = get_Nc(type[idx], type, x, para.Lc);
             }
         }
         Nmove += 1;
 
         // statistics
         Nsamp += 1;
+        N = get_N(para.Ntype, type);
         Ntot = sum(N);
         if (Ntot > 0) {
             obs["Usum"] += U;
