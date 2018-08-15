@@ -90,7 +90,7 @@ bool create(std::vector<double>& x, std::vector<double>& v,
         const std::vector<double>& newx, const std::vector<double>& newv,
         double& U, double& W,
         const double rc, const double Urc,
-        const double L, const double V,
+        const double L, const double Vc, const uint64_t Nc,
         const double kT, const double mu,
         const double ULRC0, const double WLRC0)
 {
@@ -102,7 +102,7 @@ bool create(std::vector<double>& x, std::vector<double>& v,
 
     potin(x, newx, rc, Urc, L, ULRC0, WLRC0, dU, dW);
 
-    dCB = dU / kT - mu / kT  - log(V / (N + 1));
+    dCB = dU / kT - mu / kT  - log(Vc / (Nc + 1));
     if (decide(dCB)) {
         x.insert(x.end(), newx.begin(), newx.begin() + 3);
         U += dU;
@@ -119,7 +119,7 @@ bool destruct(std::vector<double>& x, std::vector<double>& v,
         const uint64_t ofs,
         double& U, double& W,
         const double rc, const double Urc,
-        const double L, const double V,
+        const double L, const double Vc, const uint64_t Nc,
         const double kT, const double mu,
         const double ULRC0, const double WLRC0)
 {
@@ -133,7 +133,7 @@ bool destruct(std::vector<double>& x, std::vector<double>& v,
 
     potout(x, ofs, rc, Urc, L, ULRC0, WLRC0, dU, dW);
 
-    dDB = dU / kT + mu / kT - log(N / V);
+    dDB = dU / kT + mu / kT - log(Nc / Vc);
     if (decide(dDB)) {
         x.erase(x.begin() + ofs, x.begin() + ofs + 3);
         U += dU;
@@ -141,7 +141,6 @@ bool destruct(std::vector<double>& x, std::vector<double>& v,
 
         if (not v.empty()) {
             v.erase(v.begin() + ofs, v.begin() + ofs + 3);
-            //v = v * sqrt(mean(v * v) / kT);
         }
         return true;
     }

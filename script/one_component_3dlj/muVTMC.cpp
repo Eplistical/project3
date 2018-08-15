@@ -152,17 +152,22 @@ void run()
                 Naccept += shuffle(x, ofs, U, W, para.kT, para.dxmax, para.L, para.rc, Urc, ULRC0, WLRC0);
             }
         }
-        else if (randnum < create_frac) {
-            // create
-            vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
-            Naccept += create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
-        }
         else {
-            // destruct
+            // exchange
             vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
-            if (not Vc_idx.empty()) {
-                uint64_t ofs(randomer::choice(Vc_idx) * 3);
-                Naccept += destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+            uint64_t Nc(Vc_idx.size());
+
+            if (randnum < create_frac) {
+                // create
+                vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
+                Naccept += create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
+            }
+            else {
+                // destruct
+                if (not Vc_idx.empty()) {
+                    uint64_t ofs(randomer::choice(Vc_idx) * 3);
+                    Naccept += destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
+                }
             }
         }
         Nmove += 1;

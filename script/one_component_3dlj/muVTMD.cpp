@@ -159,18 +159,20 @@ void run()
 
         // exchange
         if (istep % para.K == 0) {
+            vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
+            uint64_t Nc(Vc_idx.size());
+
             if (randomer::rand() < 0.5) {
                 // create
                 vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
                 vector<double> newv(randomer::maxwell_dist(para.mass, para.kT));
-                create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+                create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
             }
             else {
                 // destruct
-                vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
                 if (not Vc_idx.empty()) {
                     uint64_t ofs(randomer::choice(Vc_idx) * 3);
-                    destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.V, para.kT, para.mu, ULRC0, WLRC0);
+                    destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
                 }
             }
         }
