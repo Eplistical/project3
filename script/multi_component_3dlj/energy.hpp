@@ -11,9 +11,6 @@
 inline void raw_pair_energy(const double r2, const double sigma, const double epsilon,
         double& U, double& W) 
 {
-    U = 0.0;
-    W = 0.0;
-    return ;
     // calc pair energy for r2
     double ir2, ir6;
     ir2 = sigma * sigma / r2;
@@ -62,10 +59,6 @@ void tail_correction(const uint64_t Ntype,
         std::vector<double>& ULRC, 
         std::vector<double>& WLRC) 
 {
-    Urc.assign(Ntype * Ntype, 0.0);
-    ULRC.assign(Ntype * Ntype, 0.0);
-    Urc.assign(Ntype * Ntype, 0.0);
-    return ;
     double irc3, irc9;
     double sig, eps;
     uint64_t ijcoup;

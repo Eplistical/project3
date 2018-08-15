@@ -34,7 +34,9 @@ void init_conf(vector<double>& x, vector<double>& v,
         vector<uint64_t> tmp(N0[i], i);
         type.insert(type.end(), tmp.begin(), tmp.end());
     }
-    shuffle(type.begin(), type.end(), randomer::rng);
+    if (Ntype > 1) {
+        shuffle(type.begin(), type.end(), randomer::rng);
+    }
 
     // init x
     x.resize(Ntot * 3);
@@ -149,7 +151,6 @@ void run()
             para.rc, Urc, para.L, ULRC, WLRC, U, W, nullptr);
 
     vector<uint64_t> N(get_N(para.Ntype, type));
-    uint64_t Ntot(sum(N));
 
     out.info("# init configuration: N = ", N);
     out.info("# init U = ", U, " init W = ", W);
@@ -158,59 +159,64 @@ void run()
     uint64_t Nsamp(0);
     map<string, double> obs;
     vector<string> obs_keys { "Usum", "Wsum"};
-    for (int i(0); i < para.Ntype; ++i) {
+    for (uint64_t i(0); i < para.Ntype; ++i) {
         obs_keys.push_back(misc::fmtstring("rhosum%d", i));
     }
     for (const auto& key : obs_keys) {
-        ioer::info(key);
         obs[key] = 0.0;
     }
 
     uint64_t Naccept(0), Nmove(0);
     out.info("# start MC looping ... ");
     out.tabout_nonewline("# Nsamp", "<U>", "<P>");
-    for (int i(0); i < para.Ntype; ++i) {
+    for (uint64_t i(0); i < para.Ntype; ++i) {
         out.tabout_nonewline(misc::fmtstring("<rho%d>", i));
     }
-    out.newline();
+    out.tabout("<rho>");
 
+    // main MC part
+    const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     double randnum;
-    uint64_t Nc;
+    uint64_t Ntot;
     N = get_N(para.Ntype, type);
     Ntot = sum(N);
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         randnum = randomer::rand();
-        // shuffle
-        /*
-        if (not x.empty()) {
-            uint64_t idx(randomer::choice(Ntot));
-            Naccept += shuffle(x, idx, para.Ntype, type, para.kT, para.dxmax, para.sigma, para.epsilon, 
-                    para.rc, Urc, para.L, ULRC, WLRC, U, W);
-        }
-        */
-
-        const uint64_t thetype(randomer::choice(para.Ntype));
-        const vector<uint64_t> Vc_idx(get_Vc_idx(thetype, type, x, para.Lc));
-        Nc = Vc_idx.size();
-        if (randnum < 0.5) {
-            // create
-            vector<double> newx, newv;
-            rand_in_Vc(para.mass[thetype], para.kT, para.Lc, newx, newv);
-            Naccept += create(x, v, type, newx, newv, thetype,
-                    para.Ntype, N, 
-                    para.sigma, para.epsilon, para.rc, Urc, 
-                    para.L, para.kT, para.mu, para.Vc, Nc,
-                    ULRC, WLRC, U, W);
+        if (randnum < shuffle_frac) {
+            // shuffle
+            if (not x.empty()) {
+                uint64_t idx(randomer::choice(Ntot));
+                Naccept += shuffle(x, idx, para.Ntype, type, 
+                        para.kT, para.dxmax, para.sigma, para.epsilon, 
+                        para.rc, Urc, para.L, ULRC, WLRC, U, W);
+            }
         }
         else {
-            // destruct
-            if (not Vc_idx.empty()) {
-                uint64_t idx(randomer::choice(Vc_idx));
-                Naccept += destruct(x, v, type, idx, 
-                        para.Ntype, N,
-                        para.sigma, para.epsilon, para.rc, Urc,
+            // exchange
+            const uint64_t thetype( (para.Ntype == 1) ? 0 : randomer::choice(para.Ntype) );
+
+            const vector<uint64_t> Vc_idx(get_Vc_idx(thetype, type, x, para.Lc));
+            const uint64_t Nc(Vc_idx.size());
+            if (randnum < create_frac) {
+                // create
+                vector<double> newx, newv;
+                rand_in_Vc(para.mass[thetype], para.kT, para.Lc, newx, newv);
+                Naccept += create(x, v, type, newx, newv, thetype,
+                        para.Ntype, N, 
+                        para.sigma, para.epsilon, para.rc, Urc, 
                         para.L, para.kT, para.mu, para.Vc, Nc,
                         ULRC, WLRC, U, W);
+            }
+            else {
+                // destruct
+                if (not Vc_idx.empty()) {
+                    uint64_t idx(randomer::choice(Vc_idx));
+                    Naccept += destruct(x, v, type, idx, 
+                            para.Ntype, N,
+                            para.sigma, para.epsilon, para.rc, Urc,
+                            para.L, para.kT, para.mu, para.Vc, Nc,
+                            ULRC, WLRC, U, W);
+                }
             }
         }
         Nmove += 1;
@@ -222,7 +228,7 @@ void run()
         if (Ntot > 0) {
             obs["Usum"] += U;
             obs["Wsum"] += W;
-            for (int i(0); i < para.Ntype; ++i) {
+            for (uint64_t i(0); i < para.Ntype; ++i) {
                 obs[misc::fmtstring("rhosum%d", i)] += N[i] / para.V;
             }
         }
@@ -230,7 +236,7 @@ void run()
         if (istep % para.Anastep == 0) {
             // get rho sum
             double rhosum(0.0);
-            for (int i(0); i < para.Ntype; ++i) {
+            for (uint64_t i(0); i < para.Ntype; ++i) {
                 rhosum += obs[misc::fmtstring("rhosum%d", i)];
             }
 
@@ -239,8 +245,7 @@ void run()
                     obs["Usum"] / para.V / rhosum,
                     rhosum / Nsamp * para.kT + obs["Wsum"] / Nsamp / para.V
                     );
-
-            for (int i(0); i < para.Ntype; ++i) {
+            for (uint64_t i(0); i < para.Ntype; ++i) {
                 out.tabout_nonewline(obs[misc::fmtstring("rhosum%d", i)] / Nsamp);
             }
             out.tabout(rhosum / Nsamp);
@@ -249,27 +254,29 @@ void run()
             write_conf(x, type, para.conffile);
         }
     }
+
     // get rho sum
     double rhosum(0.0);
-    for (int i(0); i < para.Ntype; ++i) {
+    for (uint64_t i(0); i < para.Ntype; ++i) {
         rhosum += obs[misc::fmtstring("rhosum%d", i)];
     }
 
     // output
     out.tabout_nonewline(Nsamp, 
             obs["Usum"] / para.V / rhosum,
-            rhosum / Nsamp * para.kT + obs["Wsum"] / Nsamp / para.V
+            (rhosum * para.kT + obs["Wsum"] / para.V) / Nsamp
             );
-
-    for (int i(0); i < para.Ntype; ++i) {
+    for (uint64_t i(0); i < para.Ntype; ++i) {
         out.tabout_nonewline(obs[misc::fmtstring("rhosum%d", i)] / Nsamp);
     }
-    out.newline();
+    out.tabout(rhosum / Nsamp);
 
     // save conf
     write_conf(x, type, para.conffile);
 
+    //final output
     out.tabout("# acc ratio = ", static_cast<double>(Naccept) / Nmove);
+    out.info("# --- PROGRAM ENDS --- ");
 } 
 
 // main
