@@ -51,7 +51,7 @@ bool shuffle(std::vector<double>& x, const uint64_t ofs,
         double& U, double& W,
         const double kT, const double dxmax, const double L,
         const double rc, const double Urc,
-        const double ULRC0, const double WLRC0)
+        const double ULRC, const double WLRC)
 {
     // shuffle the particle x[ofs:ofs+3] w/ MC algorithm
     const uint64_t _3N = x.size();
@@ -92,7 +92,7 @@ bool create(std::vector<double>& x, std::vector<double>& v,
         const double rc, const double Urc,
         const double L, const double Vc, const uint64_t Nc,
         const double kT, const double mu,
-        const double ULRC0, const double WLRC0)
+        const double ULRC, const double WLRC)
 {
     // attempt to create a new particle at newx w/ velocity newv
     const uint64_t _3N(x.size());
@@ -100,7 +100,7 @@ bool create(std::vector<double>& x, std::vector<double>& v,
     double dU, dW;
     double dCB;
 
-    potin(x, newx, rc, Urc, L, ULRC0, WLRC0, dU, dW);
+    potin(x, newx, rc, Urc, L, ULRC, WLRC, dU, dW);
 
     dCB = dU / kT - mu / kT  - log(Vc / (Nc + 1));
     if (decide(dCB)) {
@@ -121,7 +121,7 @@ bool destruct(std::vector<double>& x, std::vector<double>& v,
         const double rc, const double Urc,
         const double L, const double Vc, const uint64_t Nc,
         const double kT, const double mu,
-        const double ULRC0, const double WLRC0)
+        const double ULRC, const double WLRC)
 {
     // attempt to destruct an existing particle x[ofs]
     // if success, rescale rest v to maintain total momentum
@@ -131,7 +131,7 @@ bool destruct(std::vector<double>& x, std::vector<double>& v,
     double dU, dW;
     double dDB;
 
-    potout(x, ofs, rc, Urc, L, ULRC0, WLRC0, dU, dW);
+    potout(x, ofs, rc, Urc, L, ULRC, WLRC, dU, dW);
 
     dDB = dU / kT + mu / kT - log(Nc / Vc);
     if (decide(dDB)) {
@@ -153,7 +153,7 @@ void evolve(std::vector<double>& x, std::vector<double>& v,
         const double dt, const double mass, 
         const double kT, const double nu,
         const double rc, const double Urc,
-        const double ULRC0, const double WLRC0)
+        const double ULRC, const double WLRC)
 {
     // evolve the system w/ MD algorithm
     static std::vector<double> F;
@@ -165,7 +165,7 @@ void evolve(std::vector<double>& x, std::vector<double>& v,
 
     // velocity verlet step 1
     F.assign(_3N, 0.0);
-    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
+    all_energy(x, rc, Urc, L, ULRC, WLRC, U, W, &F[0], true);
 
     x = x + v * dt + 0.5 / mass * dt * dt * F;
     v = v + 0.5 / mass * dt * F;
@@ -178,7 +178,7 @@ void evolve(std::vector<double>& x, std::vector<double>& v,
 
     // velocity verlet step 2
     F.assign(_3N, 0.0);
-    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
+    all_energy(x, rc, Urc, L, ULRC, WLRC, U, W, &F[0], true);
     v = v + 0.5 / mass * dt * F;
 }
 

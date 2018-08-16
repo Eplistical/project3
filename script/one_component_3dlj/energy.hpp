@@ -76,7 +76,7 @@ inline void one_energy(const std::vector<double>& x, const uint64_t ofs,
 
 inline void all_energy(const std::vector<double>& x, 
         const double rc, const double Urc, const double L, 
-        const double ULRC0, const double WLRC0, 
+        const double ULRC, const double WLRC, 
         double& U, double& W, double* F, bool calc_F = false)
 {
     // calc total U & W for a given configuration x
@@ -111,14 +111,14 @@ inline void all_energy(const std::vector<double>& x,
                 }
             }
         }
-        U += ULRC0 * N * N;
-        W += WLRC0 * N * N;
+        U += ULRC * N * N;
+        W += WLRC * N * N;
     }
 }
 
 inline void potin(const std::vector<double>& x, const std::vector<double>& newx, 
         const double rc, const double Urc, const double L,
-        const double ULRC0, const double WLRC0, 
+        const double ULRC, const double WLRC, 
         double& dU, double& dW)
 {
     // calc dU & dW for a new particle newx
@@ -136,13 +136,13 @@ inline void potin(const std::vector<double>& x, const std::vector<double>& newx,
         }
     }
 
-    dU += (2.0 * N + 1.0) * ULRC0;
-    dW += (2.0 * N + 1.0) * WLRC0;
+    dU += (2.0 * N + 1.0) * ULRC;
+    dW += (2.0 * N + 1.0) * WLRC;
 }
 
 inline void potout(const std::vector<double>& x, const uint64_t ofs,
         const double rc, const double Urc, const double L,
-        const double ULRC0, const double WLRC0, 
+        const double ULRC, const double WLRC, 
         double& dU, double& dW)
 {
     // calc dU & dW for removing an existing particle x[ofs]
@@ -154,12 +154,12 @@ inline void potout(const std::vector<double>& x, const uint64_t ofs,
 
     one_energy(x, ofs, rc, Urc, L, dU, dW, nullptr);
 
-    dU = -dU - (2.0 * N - 1.0) * ULRC0;
-    dW = -dW - (2.0 * N - 1.0) * WLRC0;
+    dU = -dU - (2.0 * N - 1.0) * ULRC;
+    dW = -dW - (2.0 * N - 1.0) * WLRC;
 }
 
 void tail_correction(const double rc, const double V, const std::string& LJmodel,
-        double& Urc, double& ULRC0, double& WLRC0) 
+        double& Urc, double& ULRC, double& WLRC) 
 {
     assert(LJmodel == "c" or LJmodel == "cs");
     double irc3, irc9;
@@ -168,15 +168,15 @@ void tail_correction(const double rc, const double V, const std::string& LJmodel
     // calcualte tail correction energy
     if (LJmodel == "c") {
         // cutoff only
-        ULRC0 = 8.0 / 9.0 * M_PI / V * (irc9 - 3.0 * irc3);
-        WLRC0 = 32.0 / 9.0 * M_PI / V * (irc9 - 1.5 * irc3);
+        ULRC = 8.0 / 9.0 * M_PI / V * (irc9 - 3.0 * irc3);
+        WLRC = 32.0 / 9.0 * M_PI / V * (irc9 - 1.5 * irc3);
 
         Urc = 0.0;
     }
     else if (LJmodel == "cs") {
         // cutoff + shifted
-        ULRC0 = 32.0 / 9.0 * M_PI / V * (irc9 - 1.5 * irc3);
-        WLRC0 = 32.0 / 9.0 * M_PI / V * (irc9 - 1.5 * irc3);
+        ULRC = 32.0 / 9.0 * M_PI / V * (irc9 - 1.5 * irc3);
+        WLRC = 32.0 / 9.0 * M_PI / V * (irc9 - 1.5 * irc3);
 
         double Wrc, rc2(rc * rc);
         raw_pair_energy(rc2, Urc, Wrc);

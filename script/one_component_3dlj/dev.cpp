@@ -120,9 +120,12 @@ void run()
     out.info("# program name: ", program_name);
 
     // tail corrections
-    double ULRC0, WLRC0, Urc;
-    tail_correction(para.rc, para.V, para.LJmodel, Urc, ULRC0, WLRC0);
-    out.info("# tail correction: Urc = ", Urc, " ULRC0 = ", ULRC0, " WLRC0 = ", WLRC0);
+    double ULRC, WLRC, Urc;
+    tail_correction(para.rc, para.V, para.LJmodel, Urc, ULRC, WLRC);
+    out.info("# tail correction:");
+    out.info("# Urc = ", Urc);
+    out.info("# ULRC = ", ULRC);
+    out.info("# WLRC = ", WLRC);
 
     // init configuration
     vector<double> x, v;
@@ -133,12 +136,13 @@ void run()
     else {
         read_conf(x, v, para.conffile);
     }
-    all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W, nullptr);
-    out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
+    all_energy(x, para.rc, Urc, para.L, ULRC, WLRC, U, W, nullptr);
+    out.info("# init configuration: N = ", x.size() / 3);
+    out.info("# init U = ", U);
+    out.info("# init W = ", W);
 
     // main MD part
     double randnum;
-    const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     uint64_t N;
 
     // observable map
@@ -151,18 +155,16 @@ void run()
 
     // loop
     out.info("# start MD looping ... ");
-    out.info("# shuffle frac = ", shuffle_frac, " create frac = ", create_frac);
     out.tabout("# Nsamp", "<U>", "<P>", "<kT>", "<rho>");
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         N = x.size() / 3;
         // evolve
         if (not x.empty()) {
             evolve(x, v, U, W, para.L, para.dt, para.mass, para.kT, para.nu,
-                    para.rc, Urc, ULRC0, WLRC0);
+                    para.rc, Urc, ULRC, WLRC);
             andersen_thermostat(v, para.mass, para.kT, para.nu, para.dt);
         }
 
-        /*
         // exchange
         if (istep % para.K == 0) {
             vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
@@ -172,17 +174,16 @@ void run()
                 // create
                 vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
                 vector<double> newv(randomer::maxwell_dist(para.mass, para.kT));
-                create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
+                create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC, WLRC);
             }
             else {
                 // destruct
                 if (not Vc_idx.empty()) {
                     uint64_t ofs(randomer::choice(Vc_idx) * 3);
-                    destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
+                    destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC, WLRC);
                 }
             }
         }
-        */
 
         // statistics
         Nsamp += 1;
@@ -215,20 +216,6 @@ void run()
     write_conf(x, v, para.conffile);
 
     //final output
-    const double avgrho(obs["rhosum"] / Nsamp);
-    const double avgU(obs["Usum"] / Nsamp);
-    const double avgW(obs["Wsum"] / Nsamp);
-    const double avgkT(obs["kTsum"] / Nsamp);
-
-    out.drawline('\n', 1);
-    out.tabout("# kT = ", para.kT);
-    out.tabout("# mu = ", para.mu);
-    out.tabout("# <rho> = ", avgrho);
-    out.tabout("# <kT> = ", avgkT);
-    out.tabout("# <U> = ", avgU / para.V / avgrho);
-    out.tabout("# <P> = ", avgrho * avgkT + avgW / para.V);
-    out.drawline('\n', 1);
-
     out.info("# --- PROGRAM ENDS --- ");
 } 
 
