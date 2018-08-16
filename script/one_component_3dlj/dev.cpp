@@ -2,6 +2,7 @@
 #include <cassert>
 #include <algorithm>
 #include <string>
+#include <map>
 #include "misc/vector.hpp"
 #include "misc/randomer.hpp"
 #include "misc/ioer.hpp"
@@ -9,9 +10,10 @@
 #include "config.hpp"
 #include "energy.hpp"
 #include "mcmd.hpp"
+#include "thermostat.hpp"
 using namespace std;
 
-const string program_name("muVTMC");
+const string program_name("muVTMD");
 
 // configuration functions
 void init_conf(vector<double>& x, vector<double>& v,
@@ -44,11 +46,16 @@ void init_conf(vector<double>& x, vector<double>& v,
             }
         }
     }
-    // init v as empty
-    v.clear();
+    // init v
+    //v = randomer::maxwell_dist(mass, kT, N0);
+    v.resize(N0 * 3);
+    for (uint64_t i(0); i < N0; ++i) {
+        vector<double> tmp(randomer::maxwell_dist(mass, kT));
+        copy(tmp.begin(), tmp.begin() + 3, v.begin() + i * 3);
+    }
 }
 
-void read_conf(vector<double>& x, const string& conffile) 
+void read_conf(vector<double>& x, vector<double>& v, const string& conffile) 
 {
     ioer::h5file_t in(conffile, ios::in);
     uint64_t N;
@@ -56,24 +63,29 @@ void read_conf(vector<double>& x, const string& conffile)
     in.read_attr("para", "N", N, "program", program);
     if (N > 0) {
         in.read_dataset("x", x);
+        in.read_dataset("v", v);
     }
     else {
         x.resize(0);
+        v.resize(0);
     }
     assert(N * 3 == x.size());
+    assert(N * 3 == v.size());
     assert(program == program_name);
     in.close();
 }
 
-inline void write_conf(const vector<double>& x, const string& conffile) 
+inline void write_conf(const vector<double>& x, const vector<double>& v, const string& conffile) 
 {
     ioer::h5file_t out(conffile, ios::out);
     uint64_t N(x.size() / 3);
     out.create_dataset("para", vector<double>{0.0});
     out.create_attr("para", "N", N, "program", program_name);
     out.create_dataset("x", x);
+    out.create_dataset("v", v);
     out.close();
 }
+
 
 // run
 
@@ -97,9 +109,10 @@ void run()
         ("# mass", para.mass)
         ("# Nstep", para.Nstep)
         ("# Anastep", para.Anastep)
-        ("# dxmax", para.dxmax)
+        ("# dt", para.dt)
+        ("# nu", para.nu)
+        ("# K", para.K)
         ("# prepinit", para.prepinit)
-        ("# move_frac", para.move_frac)
         ("# conffile", para.conffile)
         ("# random_seed", para.random_seed)
         ;
@@ -118,13 +131,12 @@ void run()
         init_conf(x, v, para.mass, para.kT, para.L, para.N0);
     }
     else {
-        read_conf(x, para.conffile);
+        read_conf(x, v, para.conffile);
     }
     all_energy(x, para.rc, Urc, para.L, ULRC0, WLRC0, U, W, nullptr);
     out.info("# init configuration: N = ", x.size() / 3, " init U = ", U, " init W = ", W);
 
-    // main MC part
-    const vector<double> newv;
+    // main MD part
     double randnum;
     const double shuffle_frac(para.move_frac), create_frac(1.0 - (1.0 - shuffle_frac) * 0.5);
     uint64_t N;
@@ -132,45 +144,45 @@ void run()
     // observable map
     uint64_t Nsamp(0);
     map<string, double> obs;
-    vector<string> obs_keys { "rhosum", "Usum", "Wsum"};
+    vector<string> obs_keys { "rhosum", "Usum", "Wsum", "kTsum"};
     for (const auto& key : obs_keys) {
         obs[key] = 0.0;
     }
 
-    uint64_t Naccept(0), Nmove(0);
-    out.info("# start MC looping ... ");
+    // loop
+    out.info("# start MD looping ... ");
     out.info("# shuffle frac = ", shuffle_frac, " create frac = ", create_frac);
-    out.tabout("# Nsamp", "<rho>", "<U>", "<P>");
+    out.tabout("# Nsamp", "<U>", "<P>", "<kT>", "<rho>");
     for (uint64_t istep(0); istep < para.Nstep; ++istep) {
         N = x.size() / 3;
-
-        randnum = randomer::rand();
-        if (randnum < shuffle_frac) {
-            // shuffle
-            if (not x.empty()) {
-                uint64_t ofs(randomer::choice(N) * 3);
-                Naccept += shuffle(x, ofs, U, W, para.kT, para.dxmax, para.L, para.rc, Urc, ULRC0, WLRC0);
-            }
+        // evolve
+        if (not x.empty()) {
+            evolve(x, v, U, W, para.L, para.dt, para.mass, para.kT, para.nu,
+                    para.rc, Urc, ULRC0, WLRC0);
+            andersen_thermostat(v, para.mass, para.kT, para.nu, para.dt);
         }
-        else {
-            // exchange
+
+        /*
+        // exchange
+        if (istep % para.K == 0) {
             vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
             uint64_t Nc(Vc_idx.size());
 
-            if (randnum < create_frac) {
+            if (randomer::rand() < 0.5) {
                 // create
                 vector<double> newx(randomer::vrand(3, -0.5 * para.Lc, 0.5 * para.Lc));
-                Naccept += create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
+                vector<double> newv(randomer::maxwell_dist(para.mass, para.kT));
+                create(x, v, newx, newv, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
             }
             else {
                 // destruct
                 if (not Vc_idx.empty()) {
                     uint64_t ofs(randomer::choice(Vc_idx) * 3);
-                    Naccept += destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
+                    destruct(x, v, ofs, U, W, para.rc, Urc, para.L, para.Vc, Nc, para.kT, para.mu, ULRC0, WLRC0);
                 }
             }
         }
-        Nmove += 1;
+        */
 
         // statistics
         Nsamp += 1;
@@ -179,36 +191,42 @@ void run()
             obs["rhosum"] += N / para.V;
             obs["Usum"] += U;
             obs["Wsum"] += W;
+            obs["kTsum"] += 2.0 * cal_Ek(v, para.mass) / 3.0 / N;
         }
         // output & save
         if (istep % para.Anastep == 0) {
-            out.tabout(Nsamp, 
-                    obs["rhosum"] / Nsamp,
+
+            // output
+            out.tabout(Nsamp,
                     obs["Usum"] / para.V / obs["rhosum"],
-                    obs["rhosum"] / Nsamp * para.kT + obs["Wsum"] / Nsamp / para.V
+                    (obs["rhosum"] * obs["kTsum"] / Nsamp + obs["Wsum"] / para.V) / Nsamp,
+                    obs["kTsum"] / Nsamp,
+                    obs["rhosum"] / Nsamp
                     );
-            write_conf(x, para.conffile);
+            write_conf(x, v, para.conffile);
         }
     } 
-    out.tabout(Nsamp, 
-            obs["rhosum"] / Nsamp,
+    out.tabout(Nsamp,
             obs["Usum"] / para.V / obs["rhosum"],
-            obs["rhosum"] / Nsamp * para.kT + obs["Wsum"] / Nsamp / para.V
+            obs["rhosum"] / Nsamp * obs["kTsum"] / Nsamp + obs["Wsum"] / Nsamp / para.V,
+            obs["kTsum"] / Nsamp,
+            obs["rhosum"] / Nsamp
             );
-    write_conf(x, para.conffile);
+    write_conf(x, v, para.conffile);
 
     //final output
     const double avgrho(obs["rhosum"] / Nsamp);
     const double avgU(obs["Usum"] / Nsamp);
     const double avgW(obs["Wsum"] / Nsamp);
+    const double avgkT(obs["kTsum"] / Nsamp);
 
     out.drawline('\n', 1);
     out.tabout("# kT = ", para.kT);
     out.tabout("# mu = ", para.mu);
     out.tabout("# <rho> = ", avgrho);
+    out.tabout("# <kT> = ", avgkT);
     out.tabout("# <U> = ", avgU / para.V / avgrho);
-    out.tabout("# <P> = ", avgrho * para.kT + avgW / para.V);
-    out.tabout("# acc ratio = ", static_cast<double>(Naccept) / Nmove);
+    out.tabout("# <P> = ", avgrho * avgkT + avgW / para.V);
     out.drawline('\n', 1);
 
     out.info("# --- PROGRAM ENDS --- ");
@@ -217,7 +235,6 @@ void run()
 // main
 
 int main(int argc, char** argv) {
-
     if (argparse(argc, argv) == false) {
         return 0;
     }

@@ -166,22 +166,20 @@ void evolve(std::vector<double>& x, std::vector<double>& v,
     // velocity verlet step 1
     F.assign(_3N, 0.0);
     all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
+
     x = x + v * dt + 0.5 / mass * dt * dt * F;
     v = v + 0.5 / mass * dt * F;
 
     // periodic condition
     for (auto& xi : x) {
         xi -= L * round(xi / L);
+        misc::crasher::confirm<>((xi <= 0.5 * L and xi >= -0.5 * L), "out of range!");
     }
 
     // velocity verlet step 2
     F.assign(_3N, 0.0);
     all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
     v = v + 0.5 / mass * dt * F;
-
-    for (auto& xi : x) {
-        misc::crasher::confirm<>(xi <= 0.5 * L and xi >= -0.5 * L, "out of range!");
-    }
 }
 
 #endif

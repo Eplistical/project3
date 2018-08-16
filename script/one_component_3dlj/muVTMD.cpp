@@ -47,7 +47,12 @@ void init_conf(vector<double>& x, vector<double>& v,
         }
     }
     // init v
-    v = randomer::maxwell_dist(mass, kT, N0);
+    //v = randomer::maxwell_dist(mass, kT, N0);
+    v.resize(N0 * 3);
+    for (uint64_t i(0); i < N0; ++i) {
+        vector<double> tmp(randomer::maxwell_dist(mass, kT));
+        copy(tmp.begin(), tmp.begin() + 3, v.begin() + i * 3);
+    }
 }
 
 void read_conf(vector<double>& x, vector<double>& v, const string& conffile) 
@@ -157,6 +162,7 @@ void run()
             andersen_thermostat(v, para.mass, para.kT, para.nu, para.dt);
         }
 
+        /*
         // exchange
         if (istep % para.K == 0) {
             vector<uint64_t> Vc_idx(get_Vc_idx(x, para.Lc));
@@ -176,6 +182,7 @@ void run()
                 }
             }
         }
+        */
 
         // statistics
         Nsamp += 1;

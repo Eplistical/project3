@@ -29,11 +29,11 @@ inline bool pair_energy(const double* x1, const double* x2,
     r2 = 0.0;
     for (int k(0); k < 3; ++k) {
         dx[k] = x1[k] - x2[k];
-        dx[k] -= L * round(dx[k] / L);
+        dx[k] -= L * round(dx[k] / L + 1e-8);
         r2 += dx[k] * dx[k];
     }
 
-    if (r2 < rc2) {
+    if (r2 <= rc2) {
         raw_pair_energy(r2, U, W);
         U -= Urc;
         if (calc_F) {
@@ -188,4 +188,3 @@ inline double cal_Ek(const std::vector<double>& v, const double mass) {
 }
 
 #endif
-
