@@ -157,6 +157,7 @@ void run()
             andersen_thermostat(v, para.mass, para.kT, para.nu, para.dt);
         }
 
+        /*
         // exchange
         if (istep % para.K == 0) {
             if (randomer::rand() < 0.5) {
@@ -174,6 +175,7 @@ void run()
                 }
             }
         }
+        */
 
         // statistics
         Nsamp += 1;

@@ -32,11 +32,11 @@ inline bool pair_energy(const double* x1, const double* x2,
     double r2(0.0);
     for (int k(0); k < 3; ++k) {
         dx[k] = x1[k] - x2[k];
-        dx[k] -= L[k] * round(dx[k] / L[k]);
+        dx[k] -= L[k] * round(dx[k] / L[k] + 1e-8);
         r2 += dx[k] * dx[k];
     }
 
-    if (r2 < rc2) {
+    if (r2 <= rc2) {
         raw_pair_energy(r2, sigma, epsilon, U, W);
         U -= Urc;
         if (calc_F) {
@@ -251,18 +251,16 @@ inline void potout(const std::vector<double>& x, const uint64_t idx,
 }
 
 inline double cal_Ek(const std::vector<double>& v, 
-        const uint64_t Ntype, const std::vector<double>& type, 
+        const uint64_t Ntype, const std::vector<uint64_t>& type, 
         const std::vector<double>& mass) 
 {
-    const uint64_t N(v.size() / 3);
-    uint64_t ofs_i;
+    const uint64_t Ntot(type.size());
     double rst(0.0);
-    for (uint64_t i(0); i < N; ++i) {
-        ofs_i = 3 * i;
+    for (uint64_t i(0); i < Ntot; ++i) {
         rst += mass[type[i]] * (
-                v[0 + ofs_i] * v[0 + ofs_i] + 
-                v[1 + ofs_i] * v[1 + ofs_i] + 
-                v[2 + ofs_i] * v[2 + ofs_i]
+                v[0 + i * 3] * v[0 + i * 3] + 
+                v[1 + i * 3] * v[1 + i * 3] + 
+                v[2 + i * 3] * v[2 + i * 3]
                 );
     }
     return 0.5 * rst;

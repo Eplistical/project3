@@ -16,7 +16,7 @@ namespace {
     // config
     struct Para {
         // basic
-        const uint64_t Ntype = 2;
+        const uint64_t Ntype = 1;
 
         double V;
         vector<double> L; 

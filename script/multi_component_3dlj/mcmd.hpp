@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 #include "misc/randomer.hpp"
+#include "misc/crasher.hpp"
 #include "energy.hpp"
 
 // MC, MD functions
@@ -17,8 +18,8 @@ std::vector<double>& newx, std::vector<double>& newv)
         newx[k] = randomer::rand(-0.5 * Lc[k], 0.5 * Lc[k]);
     }
 
-    newv.clear();
-    //newv = randomer::maxwell_dist(para.mass[newtype], kT);
+    //newv.clear();
+    newv = randomer::maxwell_dist(mass, kT);
 }
 
 inline bool is_in_Vc(const double* x, const std::vector<double>& Lc) {
@@ -173,44 +174,54 @@ bool destruct(std::vector<double>& x, std::vector<double>& v,
 }
 
 
-/*
 void evolve(std::vector<double>& x, std::vector<double>& v,
-        double& U, double& W, const double L,
-        const double dt, const double mass, 
-        const double kT, const double nu,
-        const double rc, const double Urc,
-        const double ULRC0, const double WLRC0)
+        const uint64_t Ntype, const std::vector<uint64_t>& type,
+        const double dt, double kT, const std::vector<double>& mass,
+        const std::vector<double>& sigma, const std::vector<double>& epsilon, 
+        const std::vector<double>& rc, const std::vector<double>& Urc,
+        const std::vector<double>& L, 
+        const std::vector<double>& ULRC, const std::vector<double>& WLRC,
+        double& U, double& W)
 {
     // evolve the system w/ MD algorithm
     static std::vector<double> F;
-    const uint64_t _3N(x.size());
-    const uint64_t _3N_3(_3N - 3);
-    const uint64_t N(_3N / 3);
+    const uint64_t Ntot(type.size());
     double Uij, Wij;
-    F.resize(_3N);
 
     // velocity verlet step 1
-    F.assign(_3N, 0.0);
-    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
-    x = x + v * dt + 0.5 / mass * dt * dt * F;
-    v = v + 0.5 / mass * dt * F;
+    F.assign(Ntot * 3, 0.0);
 
-    // periodic condition
-    for (auto& xi : x) {
-        xi -= L * round(xi / L);
-    }
+    all_energy(x, Ntype, type, sigma, epsilon, 
+            rc, Urc, L, ULRC, WLRC, U, W, &F[0], true);
 
-    // velocity verlet step 2
-    F.assign(_3N, 0.0);
-    all_energy(x, rc, Urc, L, ULRC0, WLRC0, U, W, &F[0], true);
-    v = v + 0.5 / mass * dt * F;
-
-    for (auto& xi : x) {
-        if (xi > L / 2 or xi < -L / 2) {
-            ioer::info("out of range!!!!");
+    // F => F/m
+    for (uint64_t i(0); i < Ntot; ++i) {
+        for (int k(0); k < 3; ++k) {
+            F[k + i * 3] /= mass[type[i]];
         }
     }
+    x = x + v * dt + 0.5 * dt * dt * F;
+    v = v + 0.5 * dt * F;
+
+    // periodic condition
+    for (uint64_t i(0); i < Ntot; ++i) {
+        for (int k(0); k < 3; ++k) {
+            x[k + i * 3] -= L[k] * round(x[k + i * 3] / L[k]);
+            misc::crasher::confirm<>((x[k + i * 3] <= 0.5 * L[k] and x[k + i * 3] >= -0.5 * L[k]), "out of range!");
+        }
+    }
+    // velocity verlet step 2
+    F.assign(Ntot * 3, 0.0);
+    all_energy(x, Ntype, type, sigma, epsilon, 
+            rc, Urc, L, ULRC, WLRC, U, W, &F[0], true);
+
+    // F => F/m
+    for (uint64_t i(0); i < Ntot; ++i) {
+        for (int k(0); k < 3; ++k) {
+            F[k + i * 3] /= mass[type[i]];
+        }
+    }
+    v = v + 0.5 * dt * F;
 }
-*/
 
 #endif

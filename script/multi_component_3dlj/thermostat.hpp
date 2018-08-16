@@ -18,17 +18,18 @@ void berendsen_thermostat(std::vector<double>& v,
 
 
 void andersen_thermostat(std::vector<double>& v,
-        const double mass, const double kT,
+        const uint64_t Ntype, const std::vector<uint64_t>& type,
+        const std::vector<double>& mass, const double kT,
         const double nu, const double dt) 
 {
     const double nudt(nu * dt);
-    const uint64_t _3N(v.size());
+    const uint64_t Ntot(type.size());
     std::vector<double> vnew;
 
-    for (uint64_t ofs(0); ofs < _3N; ofs += 3) {
+    for (uint64_t i(0); i < Ntot; ++i) {
         if (randomer::rand() < nudt) {
-            vnew = randomer::maxwell_dist(mass, kT);
-            std::copy(vnew.begin(), vnew.begin() + 3, v.begin() + ofs);
+            vnew = randomer::maxwell_dist(mass[type[i]], kT);
+            std::copy(vnew.begin(), vnew.begin() + 3, v.begin() + i * 3);
         }
     }
 }
