@@ -110,7 +110,7 @@ t/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/share/texlive/texmf-dist/fonts
 /type1/public/amsfonts/cm/cmr12.pfb></usr/share/texlive/texmf-dist/fonts/type1/
 public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/a
 msfonts/cm/cmsy8.pfb>
-Output written on notes.pdf (2 pages, 84022 bytes).
+Output written on notes.pdf (2 pages, 86751 bytes).
 Transcript written on notes.log.
 
 @@@@ /usr/bin/pdflatex notes.tex @@@@
@@ -214,7 +214,7 @@ texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/share/texlive
 /texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/share/texlive/texmf-
 dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fon
 ts/type1/public/amsfonts/cm/cmsy8.pfb>
-Output written on notes.pdf (2 pages, 84173 bytes).
+Output written on notes.pdf (2 pages, 86974 bytes).
 Transcript written on notes.log.
 
 @@@@ /usr/bin/bibtex notes.tex @@@@
@@ -327,7 +327,7 @@ texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/share/texlive
 /texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/share/texlive/texmf-
 dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fon
 ts/type1/public/amsfonts/cm/cmsy8.pfb>
-Output written on notes.pdf (2 pages, 84173 bytes).
+Output written on notes.pdf (2 pages, 86974 bytes).
 Transcript written on notes.log.
 
 @@@@ /usr/bin/pdflatex notes.tex @@@@
@@ -431,7 +431,7 @@ texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/share/texlive
 /texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></usr/share/texlive/texmf-
 dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fon
 ts/type1/public/amsfonts/cm/cmsy8.pfb>
-Output written on notes.pdf (2 pages, 84173 bytes).
+Output written on notes.pdf (2 pages, 86974 bytes).
 Transcript written on notes.log.
 
 @@@@ /usr/bin/bibtex notes.tex @@@@
