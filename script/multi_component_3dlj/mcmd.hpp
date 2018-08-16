@@ -210,6 +210,7 @@ void evolve(std::vector<double>& x, std::vector<double>& v,
             misc::crasher::confirm<>((x[k + i * 3] <= 0.5 * L[k] and x[k + i * 3] >= -0.5 * L[k]), "out of range!");
         }
     }
+
     // velocity verlet step 2
     F.assign(Ntot * 3, 0.0);
     all_energy(x, Ntype, type, sigma, epsilon, 

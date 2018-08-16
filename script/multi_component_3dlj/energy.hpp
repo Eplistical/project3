@@ -11,12 +11,17 @@
 inline void raw_pair_energy(const double r2, const double sigma, const double epsilon,
         double& U, double& W) 
 {
-    // calc pair energy for r2
-    double ir2, ir6;
-    ir2 = sigma * sigma / r2;
-    ir6 = ir2 * ir2 * ir2;
-    U = 4.0 * epsilon * ir6 * (ir6 - 1.0);
-    W = 16.0 * epsilon * ir6 * (ir6 - 0.5);
+    if (epsilon == 0) {
+        U = 0.0;
+        W = 0.0;
+    }
+    else {
+        double ir2, ir6;
+        ir2 = sigma * sigma / r2;
+        ir6 = ir2 * ir2 * ir2;
+        U = 4.0 * epsilon * ir6 * (ir6 - 1.0);
+        W = 16.0 * epsilon * ir6 * (ir6 - 0.5);
+    }
 }
 
 inline bool pair_energy(const double* x1, const double* x2,
