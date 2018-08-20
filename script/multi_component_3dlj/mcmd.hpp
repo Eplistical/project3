@@ -1,7 +1,6 @@
 #ifndef _MCMD_HPP
 #define _MCMD_HPP
 #include <cmath>
-#include <cassert>
 #include <algorithm>
 #include <vector>
 #include "misc/randomer.hpp"

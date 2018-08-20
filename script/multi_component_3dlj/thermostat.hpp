@@ -1,7 +1,6 @@
 #ifndef _THERMOSTAT_HPP
 #define _THERMOSTAT_HPP
 #include <cmath>
-#include <cassert>
 #include <algorithm>
 #include "misc/vector.hpp"
 #include "misc/randomer.hpp"

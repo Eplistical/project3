@@ -1,5 +1,4 @@
 #include <cmath>
-#include <cassert>
 #include <algorithm>
 #include <string>
 #include <map>

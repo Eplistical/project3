@@ -1,11 +1,11 @@
 #include <cmath>
-#include <cassert>
 #include <algorithm>
 #include <string>
 #include <map>
 #include "misc/vector.hpp"
 #include "misc/randomer.hpp"
 #include "misc/ioer.hpp"
+#include "misc/crasher.hpp"
 #include "boost/timer/timer.hpp"
 #include "config.hpp"
 #include "energy.hpp"
@@ -64,9 +64,7 @@ void read_conf(vector<double>& x, vector<double>& v, const string& conffile)
         x.resize(0);
         v.resize(0);
     }
-    assert(N * 3 == x.size());
-    assert(N * 3 == v.size());
-    assert(program == program_name);
+    misc::crasher::confirm<>(program == program_name, "program name error!");
     in.close();
 }
 

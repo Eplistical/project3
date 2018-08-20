@@ -2,7 +2,6 @@
 #define _CONFIG_HPP
 #include <string>
 #include <vector>
-#include <cassert>
 #include <algorithm>
 #include "misc/crasher.hpp"
 
