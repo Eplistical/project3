@@ -1,147 +1,148 @@
-#include <cmath>
-#include <string>
-#include <algorithm>
-#include "misc/vector.hpp"
-#include "misc/ioer.hpp"
 #include "misc/crasher.hpp"
-#include "misc/fmtstring.hpp"
-#include "misc/label_index_convertor.hpp"
-
-// 2D diffusion
+#include "misc/ioer.hpp"
+#include "misc/vector.hpp"
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
 
 using namespace std;
 
-bool on_the_boundary(const vector<int>& label, const vector<int> Nx) {
-    return (label[0] == 0 
-            or label[0] == Nx[0] - 1
-            or label[1] == 0 
-            or label[1] == Nx[1] - 1
-            );
-}
+const int Nx(40);
+const double dx(0.05);
+const double D(1.0);
+const double dt(0.0001);
 
-vector<double> init_u(const vector<double>& xmin, 
-        const vector<double>& dx, 
-        const vector<int>& Nx, 
-        const misc::LabelIndexConverter& conv) 
+const double Dinvdx2(D / dx / dx);
+const int Ntot(Nx*Nx);
+
+
+vector<double> init_u()
 {
-    const int N(product(Nx));
-    const vector<double> mu{ 0.0, 0.0 };
-    const vector<double> sigma{ 0.05, 0.05 };
-    const double C(1.0 / 2 / M_PI / product(sigma));
+    vector<double> u(Ntot, 0.0);
+    double mu = 0.5*dx*Nx;
+    double sigma = 0.05;
 
-    vector<int> ix;
-    vector<double> x;
-    vector<double> u(N, 0.0);
-    for (int i(0); i < N; ++i) {
-        ix = conv.index_to_label(i);
-        if (not on_the_boundary(ix, Nx)) {
-            x = xmin + dx * ix;
-            u[i] = C * exp(-0.5 * sum(pow((x - mu) / sigma, 2)));
+    double x, y;
+    int idx;
+    double C(pow(2*M_PI * sigma * sigma, -1));
+    for (int ix(1); ix < Nx - 1; ++ix) {
+        x = ix * dx;
+        for (int iy(1); iy < Nx - 1; ++iy) {
+            y = iy * dx;
+            idx = ix + Nx * iy;
+            u[idx] = C * exp(-0.5 * (pow((x-mu) / sigma, 2) + pow((y-mu) / sigma, 2)));
         }
     }
     return u;
 }
 
-vector<double> cal_dudt(const vector<double>& u, 
-        const vector<double>& dx, 
-        const vector<int>& Nx, 
-        const double D, 
-        const misc::LabelIndexConverter& conv) 
+extern "C" {
+    using cal_dudt_t = void (*)(int* /* NEQ */, 
+            double* /* t */, double* /* u */, 
+            double* /* dudt */, 
+            double* /* rpar */, int* /* ipar */);
+
+    using cal_jac_t = void (*)(int* /* NEQ */, 
+            double* /* t */, double* /* u */, 
+            int* /* ML */, int* /* MU */, 
+            double* /* jac */, int* /* NRPD */, 
+            double* /* rpar */, int* /* ipar */);
+
+    extern void dvode_(cal_dudt_t /* cal_dudt */, int* /* NEQ */,  
+            double* /* u */, double* /* t */, double* /* tout */,
+            int* /* itol */, double* /* rtol */, double* /* atol */,
+            int* /* itask */, int* /* istate */, int* /* iopt */, double* /* rwork */,
+            int* /* lrw */, int* /* iwork */, int* /* liw */,
+            cal_jac_t /* cal_jac */, int* /* MF */, 
+            double* /* rpar */, int* /* ipar */
+            );
+};
+
+void cal_dudt(int* /* NEQ */, double* /* t */, 
+        double* u, double* dudt, 
+        double* /* rpar */, int* /* ipar */) 
 {
-    const int N(product(Nx));
-    const vector<double> D_invdx2(D / dx / dx);
-    vector<double> dudt(N, 0.0);
-    vector<int> label(2);
     int idx;
-    for (int i(1); i < Nx[0] - 1; ++i) {
-        label[0] = i;
-        for (int j(1); j < Nx[1] - 1; ++j) {
-            label[1] = j;
-            idx = conv.label_to_index(label);
-            dudt[idx] = -2 * u[idx] * sum(D_invdx2);
 
-            label[0] = i - 1;
-            dudt[idx] += D_invdx2[0] * u[conv.label_to_index(label)];
-            label[0] = i + 1;
-            dudt[idx] += D_invdx2[0] * u[conv.label_to_index(label)];
-            label[0] = i;
-
-            label[1] = j - 1;
-            dudt[idx] += D_invdx2[1] * u[conv.label_to_index(label)];
-            label[1] = j + 1;
-            dudt[idx] += D_invdx2[1] * u[conv.label_to_index(label)];
+    for (int ix(1); ix < Nx - 1; ++ix) {
+        for (int iy(1); iy < Nx - 1; ++iy) {
+            idx = ix + Nx * iy;
+            dudt[idx] = Dinvdx2 * (u[idx+1] + u[idx-1] + u[idx+Nx] + u[idx-Nx] - 4*u[idx]); 
         }
     }
-    return dudt;
 }
 
-void evolve(vector<double>& u, const double dt, 
-        const vector<double>& dx, const vector<int>& Nx,
-        const double D, const misc::LabelIndexConverter& conv)
+void cal_jac(int* /* NEQ */, double* /* t */, 
+        double* u, 
+        int* /* ML */, int* /* MU */, 
+        double* jac,  int* /* NRPD */,
+        double* /* rpar */, int* /* ipar */) 
 {
-    // RK4
-    vector<double> k1, k2, k3, k4;
-    k1 = dt * cal_dudt(u, dx, Nx, D, conv);
-    k2 = dt * cal_dudt(u + 0.5 * k1, dx, Nx, D, conv);
-    k3 = dt * cal_dudt(u + 0.5 * k2, dx, Nx, D, conv);
-    k4 = dt * cal_dudt(u + k3, dx, Nx, D, conv);
-    u = u + (k1 + 2 * k2 + 2 * k3 + k4) / 6.0;
+    int idx;
+
+    for (int ix(1); ix < Nx - 1; ++ix) {
+        for (int iy(1); iy < Nx - 1; ++iy) {
+            idx = ix + Nx * iy;
+            jac[idx + idx*Ntot] = -4*Dinvdx2;
+            jac[idx + (idx+1)*Ntot] = Dinvdx2;
+            jac[idx + (idx-1)*Ntot] = Dinvdx2;
+            jac[idx + (idx+Nx)*Ntot] = Dinvdx2;
+            jac[idx + (idx-Nx)*Ntot] = Dinvdx2;
+        }
+    }
 }
 
 int main(int argc, char** argv) {
-    const vector<int> Nx{ 501, 501 };
-    const misc::LabelIndexConverter conv(Nx);
-    const int N(product(Nx));
+    // output 
+    ioer::output_t out("");
+    out.set_precision(10);
 
-    const vector<double> xmin{ -1.0, -1.0 };
-    const vector<double> xmax(-1.0 * xmin);
-    const vector<double> dx((xmax - xmin) / (Nx - 1));
-    const double D(1.0);
+    // integrator para
+    int NEQ(Ntot);
+    int MF(21); // BDF
+    double rtol(1e-4);
+    double atol(1e-14);
+    int itol(1), itask(1), iopt(0);
+    int lrw(22 + 9*NEQ + 2*NEQ*NEQ);
+    int liw(30 + NEQ);
+    vector<double> rwork(lrw, 0.0);
+    vector<int> iwork(liw, 0.0);
+    vector<double> rpar(1, 0.0);
+    vector<int> ipar(1, 0);
+    int istate(1);
 
+    // init
+    vector<double> u = init_u();
+    double t, tout;
+    t = 0.0;
+    misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
+    int Nstep(atoi(argv[1]));
+    for (int istep(0); istep < Nstep; ++istep) {
+        // output
+        out.tabout("# step = ", istep);
 
-    const size_t Nstep(20000);
-    const double dt(5e-6);
-    const size_t Anastep(Nstep / 10);
+        tout = t + dt;
 
-    const string outfile("1.h5.out");
+        dvode_(cal_dudt, &NEQ, &u[0], &t, &tout, &itol, &rtol, &atol,
+                &itask, &istate, &iopt, &rwork[0], &lrw, &iwork[0], &liw,
+                cal_jac, &MF, &rpar[0], &ipar[0]);
 
-    misc::crasher::confirm<>(2 * D * dt / min(x*x) < 1.0, "2Ddt/dx^2 > 1.0, results not converged");
-
-    /*
-    // output file
-    ioer::h5file_t h5f(outfile, ios::out);
-    h5f.create_dataset("para", vector<double>(1, 0.0));
-    h5f.create_attr("para",
-            "xmin", xmin,
-            "dx", dx,
-            "Nx", Nx,
-            "Nstep", Nstep,
-            "Anastep", Anastep,
-            "dt", dt,
-            "D", D
-            );
-            */
-    vector<double> x(N);
-    for (int i(0); i < N; ++i) {
-        x = xmin + dx * conv.index_to_label(i);
-    }
-
-    vector<double> u(init_u(xmin, dx, Nx, conv));
-
-    for (size_t i(0); i < N; ++i) {
-        x[i] = xmin + i * dx;
-    }
-    h5f.create_dataset("x", x);
-
-    vector<double> u(init_u(xmin, dx, Nx));
-
-    for (size_t istep(0); istep < Nstep; ++istep) {
-        evolve(u, dt, dx, Nx, D, conv);
-        if (istep % Anastep == 0) {
-            h5f.create_dataset(misc::fmtstring("u%d", static_cast<int>(istep / Anastep)), u);
+        // apply boundary condition
+        for (int i(0); i < Nx; ++i) {
+            u[i + 0*Nx] = 0.0;
+            u[i + (Nx-1)*Nx] = 0.0;
+        }
+        for (int i(0); i < Nx; ++i) {
+            u[0 + i*Nx] = 0.0;
+            u[Nx-1 + i*Nx] = 0.0;
         }
     }
-    h5f.close();
+
+    for (int ix(0); ix < Nx; ++ix) {
+        for (int iy(0); iy < Nx; ++iy) {
+            printf("%16.6f%16.6f%16.6f\n", ix*dx, iy*dx, u[ix + iy*Nx]);
+        }
+    }
 
     return 0;
 }
