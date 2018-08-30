@@ -1,5 +1,5 @@
       SUBROUTINE DVODE_F90_SPARSE(NEQ,Y,T,TOUT,             &
-          ITASK,ISTATE,RTOL,ATOL,F,JAC,REINIT)
+          ITASK,ISTATE,RTOL,ATOL,F,JAC,SUPPLY_JAC,REINIT)
 ! ..
 ! An interface to call DVODE_F90 with sparse matrix (MF = 126)
 ! ..
@@ -14,7 +14,7 @@
           INTEGER, INTENT (IN) :: ITASK, NEQ
           REAL (WP), INTENT (INOUT) :: Y(*)
           REAL (WP), INTENT (IN) :: RTOL, ATOL
-          LOGICAL, INTENT (IN) :: REINIT
+          LOGICAL, INTENT (IN) :: SUPPLY_JAC, REINIT
 
           EXTERNAL JAC
 !       SUBROUTINE JAC (N, T, Y, IA, JA, NZ, PD)
@@ -55,17 +55,17 @@
 
           TYPE (VODE_OPTS), SAVE :: OPTS
           LOGICAL, SAVE :: FIRSTTIME = .TRUE.
-          LOGICAL :: USER_JACOBIAN = .FALSE.
 
           IF (FIRSTTIME .OR. REINIT) THEN
               OPTS = SET_INTERMEDIATE_OPTS(SPARSE_J=.TRUE.,            &
                     ABSERR=ATOL, RELERR=RTOL,                          &
-                    USER_SUPPLIED_JACOBIAN=USER_JACOBIAN               &
+                    USER_SUPPLIED_JACOBIAN=SUPPLY_JAC                  &
                     )
              FIRSTTIME = .FALSE.
           ENDIF
 
           IF (REINIT) ISTATE = 1
+
           CALL VODE_F90 (F,NEQ,Y,T,TOUT,ITASK,ISTATE,OPTS,JAC)
 
       END SUBROUTINE DVODE_F90_SPARSE
