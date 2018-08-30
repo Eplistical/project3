@@ -1,23 +1,13 @@
-#include "misc/crasher.hpp"
-#include "misc/ioer.hpp"
-#include "misc/vector.hpp"
-#include "misc/fmtstring.hpp"
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
+#include "misc/ioer.hpp"
+#include "misc/vector.hpp"
+#include "misc/fmtstring.hpp"
+#include "misc/crasher.hpp"
+#include "dvode_f90/dvode.hpp"
 
 using namespace std;
-
-extern "C" {
-    typedef void (*cal_dudt_t)(const int* /* NEQ */, const double* /* t */, const double* /* u */, double* /* dudt */);
-    typedef void (*cal_jac_t)(const int* /* NEQ */ , const double* /* t */, const double* /* u */, int* /* IA */, int* /* JA */, int* /* NZ */, double* /* A */);
-
-    extern void dvode_f90_sparse_(  const int* /* NEQ */, double* /* u */, double* /* t */, 
-                                    double* /* tout */, int* /* itask */, int* /* istate */, 
-                                    const double* /* rtol */, const double* /* atol */, 
-                                    cal_dudt_t /* cal_dudt */, cal_jac_t /* cal_jac */,
-                                    const int* /* reinit */);
-};
 
 const int Nx(100);
 const int Nstep(500);
@@ -149,11 +139,7 @@ int main(int argc, char** argv) {
     //out.set_precision(10);
     
     // integrator para
-    int N(Ntot);
-    double rtol(1e-4);
-    double atol(1e-14);
-    int itask(1), istate(1);
-    const int reinit(1);
+    int istate;
 
     // init
     double V;
@@ -172,7 +158,7 @@ int main(int argc, char** argv) {
         kb = k0 * exp((1.0 - alpha) * beta * (V - G0));
 
         // integrate
-        dvode_f90_sparse_(&N, &u[0], &t, &tout, &itask, &istate, &rtol, &atol, cal_dudt, cal_jac, &reinit);
+        istate = dvode_sp(u, t, tout, cal_dudt, cal_jac, 1e-4, 1e-14, true);
         misc::crasher::confirm<>(istate == 2, misc::fmtstring("error: istate = %d", istate));
 
         // apply boundary condition
@@ -193,7 +179,7 @@ int main(int argc, char** argv) {
         kb = k0 * exp((1.0 - alpha) * beta * (V - G0));
 
         // integrate
-        dvode_f90_sparse_(&N, &u[0], &t, &tout, &itask, &istate, &rtol, &atol, cal_dudt, cal_jac, &reinit);
+        istate = dvode_sp(u, t, tout, cal_dudt, cal_jac, 1e-4, 1e-14, true);
         misc::crasher::confirm<>(istate == 2, misc::fmtstring("error: istate = %d", istate));
 
         // apply boundary condition
