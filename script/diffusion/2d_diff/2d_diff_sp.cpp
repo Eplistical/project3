@@ -1,14 +1,15 @@
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
 #include "misc/crasher.hpp"
 #include "misc/ioer.hpp"
 #include "misc/vector.hpp"
 #include "misc/fmtstring.hpp"
-#include <cmath>
-#include <cstdlib>
-#include <algorithm>
+#include "dvode_f90/dvode.hpp"
 
 using namespace std;
 
-const int Nx(100);
+const int Nx(40);
 const double dx(0.05);
 const double D(1.0);
 const double dt(0.0001);
@@ -37,33 +38,22 @@ vector<double> init_u()
     return u;
 }
 
-extern "C" {
-
-    using cal_dudt_t = void(*)(int* /* N */, double* /* t */, double* /* u */,
-            double* /* dudt */, int* /* ipar */, double* /* rpar */, int* /* ierr */);
-
-    using cal_jac_j_t = void(*)(int* /* N */, double* /* t */, double* /* u */, int* /* j */,
-            double* /* jac_j */, int* /* ipar */, double* /* rpar */, int* /* ierr */);
-
-    extern void mebdfso_(
-            int* /* N */, double* /* t0 */, double* /* ho */, 
-            double* /* u */, double* /* tout */, double* /* tend */,
-            int* /* mf */, int* /* idid */, int* /* lout */,
-            int* /* lwork */, double* /* work */,
-            int* /* liwork */, int* /* iwork */, int* /* maxder */,
-            int* /* itol */, double* /* rtol */, double* /* atol */,
-            cal_dudt_t /* cal_dudt */, cal_jac_j_t /*cal_jac_j */,
-            int* /* nsp */, int* /* nonz */, 
-            int* /* ipar */, double* /* rpar */,
-            int* /* ierr */
-            );
-};
-
-void cal_dudt(int* n, double* /* t */, double* u,
-        double* dudt, int* /* ipar */, double* /* rpar */, int* /* ierr */)
+void cal_dudt(const int* /* NEQ */, const double* /* t */, const double* u, double* dudt)
 {
     // calculate dudt
     int idx;
+
+    dudt[0+0*Nx]  = Dinvdx2 * (u[0+1*Nx] + u[1+0*Nx] - 2*u[0+0*Nx]);
+    dudt[Nx-1+0*Nx] = Dinvdx2 * (u[Nx-2+0*Nx] + u[Nx-1+1*Nx] - 2*u[Nx-1+0*Nx]);
+    dudt[0+(Nx-1)*Nx] = Dinvdx2 * (u[1+(Nx-1)*Nx] + u[0+(Nx-2)*Nx] - 2*u[0+(Nx-1)*Nx]);
+    dudt[Nx-1+(Nx-1)*Nx] = Dinvdx2 * (u[Nx-1+(Nx-2)*Nx] + u[(Nx-2)+(Nx-1)*Nx] - 2*u[(Nx-1)+(Nx-1)*Nx]);
+
+    for (int i(1); i < Nx - 1; ++i) {
+        dudt[0+i*Nx] = Dinvdx2 * (u[0+(i-1)*Nx] + u[0+(i+1)*Nx] + u[1+i*Nx] - 3*u[0+i*Nx]);
+        dudt[Nx-1+i*Nx] = Dinvdx2 * (u[Nx-1+(i-1)*Nx] + u[Nx-1+(i+1)*Nx] + u[Nx-2+i*Nx] - 3*u[Nx-1+i*Nx]);
+        dudt[i+0*Nx] = Dinvdx2 * (u[i-1+0*Nx] + u[i+1+0*Nx] + u[i+1*Nx] - 3*u[i+0*Nx]);
+        dudt[i+(Nx-1)*Nx] = Dinvdx2 * (u[i-1+(Nx-1)*Nx] + u[i+1+(Nx-1)*Nx] + u[i+(Nx-2)*Nx] - 3*u[i+0*Nx]);
+    }
 
     for (int ix(1); ix < Nx - 1; ++ix) {
         for (int iy(1); iy < Nx - 1; ++iy) {
@@ -73,22 +63,82 @@ void cal_dudt(int* n, double* /* t */, double* u,
     }
 }
 
-void cal_jac_j(int* /* n */, double* /* t */, double* u, int* j,
-        double* jac_j, int* /* ipar */, double* /* rpar */, int* /* ierr */)
+void cal_jac(const int* /* NEQ */, const double* /* t */, const double* u, int* IA, int* JA, int* NZ, double* A)
 {
     // calculate j^th column of jacobian matrix
-    int idx(*j);
-    int jx, jy;
+    if (*NZ == 0) {
+        *NZ = 5*Ntot*Ntot + 6*Ntot -15;
+    }
+    else {
+        const int ofs(1);
+        int count(0);
+        IA[0] = ofs;
+        int idx;
+        for (int ix(0); ix < Nx; ++ix) {
+            for (int iy(0); iy < Nx; ++iy) {
+                idx = ix + iy * Nx;
 
-    jx = idx % Ntot;
-    jy = idx / Ntot;
+                if (ix == 0) {
+                    if (iy == 0) {
+                        JA[count] = idx    + ofs;       A[count] = -2*Dinvdx2;         count += 1;
+                        JA[count] = idx+1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx+Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                    }
+                    else if (iy == Nx-1) {
+                        JA[count] = idx-Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx    + ofs;       A[count] = -2*Dinvdx2;         count += 1;
+                        JA[count] = idx+1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                    }
+                    else {
+                        JA[count] = idx-Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx    + ofs;       A[count] = -3*Dinvdx2;         count += 1;
+                        JA[count] = idx+1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx+Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                    }
+                }
+                else if (ix == Nx-1) {
+                    if (iy == 0) {
+                        JA[count] = idx-1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx    + ofs;       A[count] = -2*Dinvdx2;         count += 1;
+                        JA[count] = idx+Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                    }
+                    else if (iy == Nx-1) {
+                        JA[count] = idx-Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx-1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx    + ofs;       A[count] = -2*Dinvdx2;         count += 1;
+                    }
+                    else {
+                        JA[count] = idx-Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx-1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx    + ofs;       A[count] = -3*Dinvdx2;         count += 1;
+                        JA[count] = idx+Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                    }
+                }
+                else {
+                    if (iy == 0) {
+                        JA[count] = idx-1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx    + ofs;       A[count] = -3*Dinvdx2;         count += 1;
+                        JA[count] = idx+1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx+Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                    }
+                    else if (iy == Nx-1) {
+                        JA[count] = idx-Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx-1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx    + ofs;       A[count] = -3*Dinvdx2;         count += 1;
+                        JA[count] = idx+1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                    }
+                    else {
+                        JA[count] = idx-Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx-1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx    + ofs;       A[count] = -4*Dinvdx2;         count += 1;
+                        JA[count] = idx+1  + ofs;       A[count] = Dinvdx2;            count += 1;
+                        JA[count] = idx+Nx + ofs;       A[count] = Dinvdx2;            count += 1;
+                    }
+                }
 
-    if (jx != 0 and jx != Nx - 1 and jy != 0 and jy != Nx - 1) {
-        jac_j[idx] = -4*Dinvdx2;
-        jac_j[idx+1] = Dinvdx2;
-        jac_j[idx-1] = Dinvdx2;
-        jac_j[idx+Ntot] = Dinvdx2;
-        jac_j[idx+Ntot] = Dinvdx2;
+                IA[idx+1] = count + ofs;
+            }
+        }
     }
 }
 
@@ -97,64 +147,19 @@ int main(int argc, char** argv) {
     ioer::output_t out("");
     out.set_precision(10);
 
-    // integrator para
-    int N(Ntot);
-
-    // tolerance
-    int itol(2);
-    double rtol(1e-4), atol(1e-14);
-
-    // workspace
-    int nonz(Ntot*5), nsp(8*N+2+2*nonz); 
-    int liwork(6*N+2*nonz+15), lwork(33*N+2*nonz+nsp+3);
-    vector<double> work(lwork);
-    vector<int> iwork(liwork);
-    iwork[10] = 10000000; // max step
-
-    // parameters pass
-    vector<int> ipar(1);
-    vector<double> rpar(1);
-
-    // control
-    int MF(25); // analytic jacobian
-    int maxder(7);
-    double ho;
-    int idid;
-    int lout(0), ierr(0);
-
     // init
     int Nstep(atoi(argv[1]));
-    double t, tout(dt), tend(Nstep * dt);
-    t = 0.0;
+    double t, tout(dt);
     vector<double> u = init_u();
     misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
 
     // loop
-    ho = dt;
-    idid = 0;
     for (int istep(0); istep < Nstep; ++istep) {
-        if (istep == 0) {
-            // first call, use idid = 1 to init
-            idid = 1;
-            mebdfso_(&N, &t, &ho, &u[0], &tout, &tend, &MF, &idid, &lout, 
-                    &lwork, &work[0], &liwork, &iwork[0], 
-                    &maxder, &itol, &rtol, &atol, 
-                    cal_dudt, cal_jac_j, 
-                    &nsp, &nonz, &ipar[0], &rpar[0], &ierr);
-            idid = 0;
-        }
-
         // output
         out.tabout("# step = ", istep);
         tout = t + dt;
 
-        mebdfso_(&N, &t, &ho, &u[0], &tout, &tend, &MF, &idid, &lout, 
-                &lwork, &work[0], &liwork, &iwork[0], 
-                &maxder, &itol, &rtol, &atol, 
-                cal_dudt, cal_jac_j, 
-                &nsp, &nonz, &ipar[0], &rpar[0], &ierr);
-        
-        misc::crasher::confirm<>(ierr == 0, misc::fmtstring("ierr = %d!!", ierr));
+        dvode_sp(u, t, tout, cal_dudt, cal_jac, 1e-3, 1e-14);
 
         // apply boundary condition
         for (int i(0); i < Nx; ++i) {
