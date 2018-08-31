@@ -22,6 +22,9 @@ const double Dinvdx2(D / dx / dx);
 const int Nx2(Nx*Nx);
 const int Ntot(Nx*Nx*Nx);
 
+vector< vector<int> > neigh_list;
+vector<double> watchdog(10000, 0.0);
+
 inline int get_idx(const int ix, const int iy, const int iz) {
     // ijk -> idx
     if (ix < 0 or ix >= Nx) return -1;
@@ -88,6 +91,17 @@ int find_neigh(const int ix, const int iy, const int iz, vector<int>& neigh_idx)
     return N_neigh;
 }
 
+void init_neigh_list() {
+    neigh_list.resize(Ntot);
+    for (int iz(0); iz < Nx; ++iz) {
+        for (int iy(0); iy < Nx; ++iy) {
+            for (int ix(0); ix < Nx; ++ix) {
+                find_neigh(ix, iy, iz, neigh_list[get_idx(ix, iy, iz)]);
+            }
+        }
+    }
+}
+
 vector<double> init_u()
 {
     // initialize u
@@ -112,62 +126,30 @@ vector<double> init_u()
 
 void cal_dudt(const int* /* NEQ */, const double* /* t */, const double* u, double* dudt)
 {
+    timer::tic(99);
+
     // calculate dudt
-    int idx, idx2;
-    int Nneigh;
+    for (int idx(0); idx < Ntot; ++idx) {
+        vector<int>& neigh(neigh_list.at(idx));
+        int Nneigh = neigh.size();
 
-    for (int iz(0); iz < Nx; ++iz) {
-        for (int iy(0); iy < Nx; ++iy) {
-            for (int ix(0); ix < Nx; ++ix) {
-                idx = get_idx(ix, iy, iz);
-
-                Nneigh = 0;
-                dudt[idx] = 0.0;
-                idx2 = get_idx(ix-1, iy, iz);
-                if (idx2 != -1) {
-                    dudt[idx] += u[idx2] - u[idx];
-                    Nneigh += 1;
-                }
-
-                idx2 = get_idx(ix+1, iy, iz);
-                if (idx2 != -1) {
-                    dudt[idx] += u[idx2] - u[idx];
-                    Nneigh += 1;
-                }
-
-                idx2 = get_idx(ix, iy-1, iz);
-                if (idx2 != -1) {
-                    dudt[idx] += u[idx2] - u[idx];
-                    Nneigh += 1;
-                }
-
-                idx2 = get_idx(ix, iy+1, iz);
-                if (idx2 != -1) {
-                    dudt[idx] += u[idx2] - u[idx];
-                    Nneigh += 1;
-                }
-
-                idx2 = get_idx(ix, iy, iz-1);
-                if (idx2 != -1) {
-                    dudt[idx] += u[idx2] - u[idx];
-                    Nneigh += 1;
-                }
-
-                idx2 = get_idx(ix, iy, iz+1);
-                if (idx2 != -1) {
-                    dudt[idx] += u[idx2] - u[idx];
-                    Nneigh += 1;
-                }
-
-                dudt[idx] = Dinvdx2 * (dudt[idx] - Nneigh * u[idx]);
+        dudt[idx] = -(Nneigh - 1) * u[idx];
+        for (int idx2 : neigh) {
+            if (idx != idx2) {
+                dudt[idx] += u[idx2];
             }
         }
+        dudt[idx] *= Dinvdx2;
     }
+
+    watchdog[99] += timer::elapsed(99);
 }
 
 void cal_jac(const int* /* NEQ */, const double* /* t */, const double* u, int* IA, int* JA, int* NZ, double* A)
 {
-    // calculate j^th column of jacobian matrix
+    timer::tic(100);
+
+    // calculate jacobian matrix in sparse form
     if (*NZ == 0) {
         *NZ = 7*Nx*Nx*Nx - 6*Nx*Nx;
     }
@@ -177,29 +159,25 @@ void cal_jac(const int* /* NEQ */, const double* /* t */, const double* u, int* 
         IA[0] = ofs;
         int idx;
 
-        vector<int> neigh;
-        int Nneigh;
-        for (int iz(0); iz < Nx; ++iz) {
-            for (int iy(0); iy < Nx; ++iy) {
-                for (int ix(0); ix < Nx; ++ix) {
-                    Nneigh = find_neigh(ix, iy, iz, neigh);
-                    idx = get_idx(ix, iy, iz);
+        for (int idx(0); idx < Ntot; ++idx) {
+            vector<int>& neigh = neigh_list.at(idx);
+            int Nneigh = neigh.size();
 
-                    for (int k(0); k < Nneigh; ++k) {
-                        JA[count] = neigh[k] + ofs;
-                        if (neigh[k] == idx) {
-                            A[count] = -Dinvdx2 * (Nneigh - 1);
-                        }
-                        else {
-                            A[count] = Dinvdx2;
-                        }
-                        count += 1;
-                    }
-                    IA[idx+1] = count + ofs;
+            for (int k(0); k < Nneigh; ++k) {
+                JA[count] = neigh[k] + ofs;
+                if (neigh[k] == idx) {
+                    A[count] = -Dinvdx2 * (Nneigh - 1);
                 }
+                else {
+                    A[count] = Dinvdx2;
+                }
+                count += 1;
             }
+            IA[idx+1] = count + ofs;
         }
     }
+
+    watchdog[100] += timer::elapsed(100);
 }
 
 int main(int argc, char** argv) {
@@ -217,6 +195,7 @@ int main(int argc, char** argv) {
     // init
     int Nstep(atoi(argv[1]));
     double t, tout(dt);
+    init_neigh_list();
     vector<double> u = init_u();
     misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
 
@@ -254,6 +233,8 @@ int main(int argc, char** argv) {
             }
         }
         ioer::tabout("# step ", istep, " done. ", timer::toc());
+        ioer::info("# time in dudt: ", watchdog[99]);
+        ioer::info("# time in jac: ", watchdog[100]);
     }
 
 
