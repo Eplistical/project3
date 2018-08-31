@@ -23,7 +23,6 @@ const int Nx2(Nx*Nx);
 const int Ntot(Nx*Nx*Nx);
 
 vector< vector<int> > neigh_list;
-vector<double> watchdog(10000, 0.0);
 
 inline int get_idx(const int ix, const int iy, const int iz) {
     // ijk -> idx
@@ -50,7 +49,7 @@ int find_neigh(const int ix, const int iy, const int iz, vector<int>& neigh_idx)
     // find neighbor indices (accending order) for a given point index, 
     //  the list includes the point itself
 
-    int idx = get_idx(ix, iy, iz);
+    int idx(get_idx(ix, iy, iz));
     int N_neigh(1);
 
     N_neigh += (ix == 0 or ix == Nx - 1) ? 1 : 2;
@@ -126,14 +125,13 @@ vector<double> init_u()
 
 void cal_dudt(const int* /* NEQ */, const double* /* t */, const double* u, double* dudt)
 {
-    timer::tic(99);
-
     // calculate dudt
+    int Nneigh;
     for (int idx(0); idx < Ntot; ++idx) {
         vector<int>& neigh(neigh_list.at(idx));
-        int Nneigh = neigh.size();
-
+        Nneigh = neigh.size();
         dudt[idx] = -(Nneigh - 1) * u[idx];
+
         for (int idx2 : neigh) {
             if (idx != idx2) {
                 dudt[idx] += u[idx2];
@@ -141,14 +139,10 @@ void cal_dudt(const int* /* NEQ */, const double* /* t */, const double* u, doub
         }
         dudt[idx] *= Dinvdx2;
     }
-
-    watchdog[99] += timer::elapsed(99);
 }
 
 void cal_jac(const int* /* NEQ */, const double* /* t */, const double* u, int* IA, int* JA, int* NZ, double* A)
 {
-    timer::tic(100);
-
     // calculate jacobian matrix in sparse form
     if (*NZ == 0) {
         *NZ = 7*Nx*Nx*Nx - 6*Nx*Nx;
@@ -156,12 +150,13 @@ void cal_jac(const int* /* NEQ */, const double* /* t */, const double* u, int* 
     else {
         const int ofs(1);
         int count(0);
-        IA[0] = ofs;
         int idx;
+        int Nneigh;
+        IA[0] = ofs;
 
         for (int idx(0); idx < Ntot; ++idx) {
             vector<int>& neigh = neigh_list.at(idx);
-            int Nneigh = neigh.size();
+            Nneigh = neigh.size();
 
             for (int k(0); k < Nneigh; ++k) {
                 JA[count] = neigh[k] + ofs;
@@ -177,7 +172,6 @@ void cal_jac(const int* /* NEQ */, const double* /* t */, const double* u, int* 
         }
     }
 
-    watchdog[100] += timer::elapsed(100);
 }
 
 int main(int argc, char** argv) {
@@ -188,7 +182,7 @@ int main(int argc, char** argv) {
     // mem approx
     out.info("# Nx = ", Nx);
     int nz1 = 7*Nx*Nx*Nx - 6*Nx*Nx;
-    double mem = (nz1 + Nx + 1) * 4 + nz1 * 8;
+    double mem = (nz1 + Nx + 1) * 4 + nz1 * 8 + (Ntot * 7) * 4;
     mem = mem / 1024 / 1024 / 1024;
     out.info(misc::fmtstring("# approx mem = %.6f GB", mem));
 
@@ -233,8 +227,6 @@ int main(int argc, char** argv) {
             }
         }
         ioer::tabout("# step ", istep, " done. ", timer::toc());
-        ioer::info("# time in dudt: ", watchdog[99]);
-        ioer::info("# time in jac: ", watchdog[100]);
     }
 
 
