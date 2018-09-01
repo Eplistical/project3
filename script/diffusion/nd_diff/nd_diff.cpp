@@ -18,9 +18,9 @@ using INTEGER = long int;
 using REAL = double;
 
 
-const INTEGER DIM(2);
-const vector<INTEGER> Nx(DIM, 40);
-const vector<REAL> dx(DIM, 0.05);
+const INTEGER DIM(3);
+const vector<INTEGER> Nx(DIM, 15);
+const vector<REAL> dx(DIM, 0.02);
 const vector<REAL> D(DIM, 1.0);
 const REAL dt(0.0001);
 const INTEGER Ntot(product(Nx));
@@ -119,7 +119,7 @@ vector<REAL> init_u()
     vector<REAL> mu(0.5*dx*Nx);
     vector<REAL> sigma(DIM, 0.05);
 
-    const REAL C(pow(2 * M_PI * product(sigma), -0.5 * DIM));
+    const REAL C(1.0 / pow(2 * M_PI, 0.5 * DIM) / product(sigma));
 
     vector<INTEGER> ijk;
     vector<REAL> xyz;
@@ -208,7 +208,6 @@ void cal_jac(const int* /* NEQ */, const REAL* /* t */, const REAL* u, int* IA, 
 #endif
 
 int main(int argc, char** argv) {
-
     // output 
     ioer::output_t out;
     out.set_precision(10);
@@ -229,7 +228,7 @@ int main(int argc, char** argv) {
     misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
 
 
-    const REAL atol(1e-12), rtol(1e-4);
+    const REAL atol(1e-8), rtol(1e-3);
     ioer::info(misc::fmtstring("# rtol = %.2e, atol = %.2e", rtol, atol));
 
     INTEGER Nstep(atoi(argv[1]));
