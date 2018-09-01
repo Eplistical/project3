@@ -19,7 +19,7 @@ using REAL = double;
 
 
 const INTEGER DIM(3);
-const vector<INTEGER> Nx(DIM, 15);
+const vector<INTEGER> Nx(DIM, 21);
 const vector<REAL> dx(DIM, 0.02);
 const vector<REAL> D(DIM, 1.0);
 const REAL dt(0.0001);
@@ -232,7 +232,7 @@ int main(int argc, char** argv) {
     ioer::info(misc::fmtstring("# rtol = %.2e, atol = %.2e", rtol, atol));
 
     INTEGER Nstep(atoi(argv[1]));
-    INTEGER Anastep(20);
+    INTEGER Anastep(10);
 
     // loop
     REAL t(0.0), tout(0.0);
