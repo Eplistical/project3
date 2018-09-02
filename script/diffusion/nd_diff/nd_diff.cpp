@@ -19,9 +19,9 @@ using INTEGER = long int;
 using REAL = double;
 
 
-const INTEGER DIM(3);
-const vector<INTEGER> Nx(DIM, 15);
-const vector<REAL> dx(DIM, 0.02);
+const INTEGER DIM(2);
+const vector<INTEGER> Nx(DIM, 40);
+const vector<REAL> dx(DIM, 0.05);
 const vector<REAL> D(DIM, 1.0);
 const REAL dt(0.0001);
 const INTEGER Ntot(product(Nx));
@@ -180,6 +180,18 @@ void cal_dudt(const int* /* NEQ */, const REAL* /* t */, const REAL* u, REAL* du
             }
         }
     }
+
+#ifdef ENABLE_TEST
+    ioer::newline();
+    ioer::info(" # -- TEST FOR cal_dudt BEGIN");
+    ioer::tabout("idx", "u[idx]", "dudt[idx]")
+    for (INTEGER idx(0); idx < Ntot; ++idx) {
+        ioer::tabout(idx, u[idx], dudt[idx]);
+    }
+    ioer::info(" # -- TEST FOR cal_dudt END");
+    ioer::newline();
+#endif
+
 }
 
 
@@ -228,6 +240,18 @@ void cal_jac(const int* /* NEQ */, const REAL* /* t */, const REAL* u, int* IA, 
             A[A_self_count] = A_self;
             IA[idx + 1] = count + ofs;
         }
+
+#ifdef ENABLE_TEST
+    ioer::newline();
+    ioer::info(" # -- TEST FOR cal_jac BEGIN");
+    showvec("u", Ntot);
+    showvec("A", A);
+    showvec("JA", JA);
+    showvec("IA", IA);
+    ioer::info(" # -- TEST FOR cal_jac END");
+    ioer::newline();
+#endif
+
     }
 }
 
