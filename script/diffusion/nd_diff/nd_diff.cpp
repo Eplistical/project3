@@ -184,7 +184,7 @@ void cal_dudt(const int* /* NEQ */, const REAL* /* t */, const REAL* u, REAL* du
 #ifdef ENABLE_TEST
     ioer::newline();
     ioer::info(" # -- TEST FOR cal_dudt BEGIN");
-    ioer::tabout("idx", "u[idx]", "dudt[idx]")
+    ioer::tabout("idx", "u[idx]", "dudt[idx]");
     for (INTEGER idx(0); idx < Ntot; ++idx) {
         ioer::tabout(idx, u[idx], dudt[idx]);
     }
@@ -244,10 +244,10 @@ void cal_jac(const int* /* NEQ */, const REAL* /* t */, const REAL* u, int* IA, 
 #ifdef ENABLE_TEST
     ioer::newline();
     ioer::info(" # -- TEST FOR cal_jac BEGIN");
-    showvec("u", Ntot);
-    showvec("A", A);
-    showvec("JA", JA);
-    showvec("IA", IA);
+    matrixop::showvec("u", u, Ntot);
+    matrixop::showvec("A", A, count);
+    matrixop::showvec("JA", JA, count);
+    matrixop::showvec("IA", IA, Ntot);
     ioer::info(" # -- TEST FOR cal_jac END");
     ioer::newline();
 #endif
