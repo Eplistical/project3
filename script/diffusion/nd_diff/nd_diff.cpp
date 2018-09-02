@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <algorithm>
 #include "misc/crasher.hpp"
 #include "misc/ioer.hpp"
@@ -19,7 +20,7 @@ using REAL = double;
 
 
 const INTEGER DIM(3);
-const vector<INTEGER> Nx(DIM, 21);
+const vector<INTEGER> Nx(DIM, 15);
 const vector<REAL> dx(DIM, 0.02);
 const vector<REAL> D(DIM, 1.0);
 const REAL dt(0.0001);
@@ -29,7 +30,7 @@ const vector<REAL> Dinvdx2(D / dx / dx);
 const INTEGER maxNneigh(2*DIM+1);
 
 vector<INTEGER> neigh_list;
-vector<INTEGER>ijk_list; 
+vector<INTEGER> ijk_list; 
 
 inline void get_ijk(const INTEGER idx, vector<INTEGER>& ijk) {
     ijk.assign(ijk_list.begin() + idx * DIM, ijk_list.begin() + (idx + 1) * DIM);
@@ -42,6 +43,17 @@ inline bool on_the_boundary(const INTEGER idx) {
         if (neigh_list[mid - d - 1] == -1) return true;
     }
     return false;
+}
+
+inline INTEGER get_Nneigh(const INTEGER idx) {
+    // get total number of neighbors for given point idx, the result excludes the point itself
+    const INTEGER* neigh(&neigh_list[idx * maxNneigh]);
+    INTEGER Nneigh(0);
+    for (INTEGER k(0); k < maxNneigh; ++k) {
+        if (neigh[k] != -1 and k != DIM)
+            Nneigh += 1;
+    }
+    return Nneigh;
 }
 
 void show_u(vector<REAL>& u, ioer::output_t& out = ioer::STDOUT) {
@@ -109,14 +121,13 @@ void init_neigh_list() {
     ioer::info(" # -- TEST FOR init_negih_list END");
     ioer::newline();
 #endif
-
 }
 
 vector<REAL> init_u()
 {
     // initialize u
     vector<REAL> u(Ntot, 0.0);
-    vector<REAL> mu(0.5*dx*Nx);
+    vector<REAL> mu(0.5 * dx * Nx);
     vector<REAL> sigma(DIM, 0.05);
 
     const REAL C(1.0 / pow(2 * M_PI, 0.5 * DIM) / product(sigma));
@@ -172,40 +183,53 @@ void cal_dudt(const int* /* NEQ */, const REAL* /* t */, const REAL* u, REAL* du
 }
 
 
-#if 0
 void cal_jac(const int* /* NEQ */, const REAL* /* t */, const REAL* u, int* IA, int* JA, int* NZ, REAL* A)
 {
     // calculate jacobian matrix in sparse form
     if (*NZ == 0) {
-        *NZ = 7*Nx*Nx*Nx - 6*Nx*Nx;
+        // if *NZ is 0, return number of non-zero elements + diag elements
+        INTEGER NZ_tmp(0);
+        for (INTEGER idx(0); idx < Ntot; ++idx) {
+            NZ_tmp += get_Nneigh(idx);
+        }
+        NZ_tmp += Ntot;
+
+        misc::crasher::confirm<overflow_error>(NZ_tmp <= numeric_limits<int>::max(), "NZ_tmp > max int, overflow");
+        *NZ = static_cast<int>(NZ_tmp);
     }
     else {
+        // if *NZ is not 0, calculate sparse Jacobian matrix in Fortran style
         const int ofs(1);
-        int count(0);
-        int idx;
-        int Nneigh;
+        INTEGER count(0);
+        INTEGER mid;
+        INTEGER Nneigh;
+        REAL A_self;
+        INTEGER A_self_count;
         IA[0] = ofs;
 
-        for (int idx(0); idx < Ntot; ++idx) {
-            vector<int>& neigh = neigh_list.at(idx);
-            Nneigh = neigh.size();
+        for (INTEGER idx(0); idx < Ntot; ++idx) {
+            Nneigh = get_Nneigh(idx);
+            mid = idx * maxNneigh + DIM;
+            A_self = 0.0;
 
-            for (int k(0); k < Nneigh; ++k) {
-                JA[count] = neigh[k] + ofs;
-                if (neigh[k] == idx) {
-                    A[count] = -Dinvdx2 * (Nneigh - 1);
+            for (INTEGER k(-DIM); k <= DIM; ++k) {
+                if (neigh_list[mid + k] != -1) {
+                    JA[count] = neigh_list[mid + k] + ofs;
+                    if (k == 0) {
+                        A_self_count = count;
+                    }
+                    else {
+                        A[count] = Dinvdx2[abs(k) - 1];
+                        A_self -= Dinvdx2[abs(k) - 1];
+                    }
+                    count += 1;
                 }
-                else {
-                    A[count] = Dinvdx2;
-                }
-                count += 1;
             }
-            IA[idx+1] = count + ofs;
+            A[A_self_count] = A_self;
+            IA[idx + 1] = count + ofs;
         }
     }
-
 }
-#endif
 
 int main(int argc, char** argv) {
     // output 
@@ -225,14 +249,14 @@ int main(int argc, char** argv) {
     init_ijk_list();
     init_neigh_list();
     vector<REAL> u = init_u();
-    misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
 
+    misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
 
     const REAL atol(1e-8), rtol(1e-3);
     ioer::info(misc::fmtstring("# rtol = %.2e, atol = %.2e", rtol, atol));
 
     INTEGER Nstep(atoi(argv[1]));
-    INTEGER Anastep(10);
+    INTEGER Anastep(20);
 
     // loop
     REAL t(0.0), tout(0.0);
@@ -248,8 +272,8 @@ int main(int argc, char** argv) {
 
         tout = t + dt;
 
-        dvode_sp(u, t, tout, cal_dudt, nullptr, rtol, atol);
-        //dvode_sp(u, t, tout, cal_dudt, cal_jac, rtol, atol);
+        //dvode_sp(u, t, tout, cal_dudt, nullptr, rtol, atol);
+        dvode_sp(u, t, tout, cal_dudt, cal_jac, rtol, atol);
 
         // apply boundary condition
         for (INTEGER idx(0); idx < Ntot; ++idx) {
