@@ -85,18 +85,6 @@ void init_ijk_list() {
         ijk = cnv.LabelIndexConverter::index_to_label(idx);
         ijk_list.insert(ijk_list.end(), ijk.begin(), ijk.end());
     }
-
-#ifdef ENABLE_TEST
-    ioer::newline();
-    ioer::info(" # -- TEST FOR init_ijk_list BEGIN");
-    ioer::tabout("idx", "ijk");
-    for (INTEGER idx(0); idx < Ntot; ++idx) {
-        ioer::tabout(idx, vector<INTEGER>(ijk_list.begin() + DIM * idx, ijk_list.begin() + DIM * (idx + 1)));
-    }
-    ioer::info(" # -- TEST FOR init_ijk_list END");
-    ioer::newline();
-#endif
-
 }
 
 void init_neigh_list() {
@@ -121,17 +109,6 @@ void init_neigh_list() {
             factor *= Nx[d];
         }
     }
-
-#ifdef ENABLE_TEST
-    ioer::newline();
-    ioer::info(" # -- TEST FOR init_neigh_list BEGIN");
-    ioer::tabout("idx", "on the boundary", "neigh_list");
-    for (INTEGER idx(0); idx < Ntot; ++idx) {
-        ioer::tabout(idx, on_the_boundary(idx), vector<INTEGER>(neigh_list.begin() + idx * maxNneigh, neigh_list.begin() + (idx + 1) * maxNneigh));
-    }
-    ioer::info(" # -- TEST FOR init_negih_list END");
-    ioer::newline();
-#endif
 }
 
 vector<REAL> init_u()
@@ -156,6 +133,7 @@ vector<REAL> init_u()
 
 void cal_dudt(const int* /* NEQ */, const REAL* /* t */, const REAL* u, REAL* dudt)
 {
+    //TODO: modify to MPI version
     // calculate dudt
     INTEGER mid, idx_l, idx_r;
     REAL uidx;
@@ -178,18 +156,6 @@ void cal_dudt(const int* /* NEQ */, const REAL* /* t */, const REAL* u, REAL* du
             }
         }
     }
-
-#ifdef ENABLE_TEST
-    ioer::newline();
-    ioer::info(" # -- TEST FOR cal_dudt BEGIN");
-    ioer::tabout("idx", "u[idx]", "dudt[idx]");
-    for (INTEGER idx(0); idx < Ntot; ++idx) {
-        ioer::tabout(idx, u[idx], dudt[idx]);
-    }
-    ioer::info(" # -- TEST FOR cal_dudt END");
-    ioer::newline();
-#endif
-
 }
 
 
@@ -238,18 +204,34 @@ void cal_jac(const int* /* NEQ */, const REAL* /* t */, const REAL* u, int* IA, 
             A[A_self_count] = A_self;
             IA[idx + 1] = count + ofs;
         }
+    }
+}
 
-#ifdef ENABLE_TEST
-    ioer::newline();
-    ioer::info(" # -- TEST FOR cal_jac BEGIN");
-    matrixop::showvec("u", u, Ntot);
-    matrixop::showvec("A", A, count);
-    matrixop::showvec("JA", JA, count);
-    matrixop::showvec("IA", IA, Ntot);
-    ioer::info(" # -- TEST FOR cal_jac END");
-    ioer::newline();
-#endif
+void update_ulur(const vector<REAL>& u) {
+    // update u_r & u_l values
+    MPIer::Request rs_l, rs_r, rr_l, rr_r;
+    vector<REAL> send_layer_l, send_layer_r;
+    if (MPIer::size > 1) {
+        send_layer_l.assign(u.begin(), u.begin() + N_per_layer);
+        send_layer_r.assign(u.end() - N_per_layer, u.end());
 
+        if (MPIer::rank == 0) {
+            MPIer::isend(MPIer::rank + 1, send_layer_r, rs_r);
+            MPIer::irecv(MPIer::rank + 1, u_r, rr_r);
+            MPIer::wait(rs_r, rr_r);
+        }
+        else if (MPIer::rank == MPIer::size - 1) {
+            MPIer::isend(MPIer::rank - 1, send_layer_l, rs_l);
+            MPIer::irecv(MPIer::rank - 1, u_l, rr_l);
+            MPIer::wait(rs_l, rr_l);
+        }
+        else {
+            MPIer::isend(MPIer::rank - 1, send_layer_l, rs_l);
+            MPIer::isend(MPIer::rank + 1, send_layer_r, rs_r);
+            MPIer::irecv(MPIer::rank - 1, u_l, rr_l);
+            MPIer::irecv(MPIer::rank + 1, u_r, rr_r);
+            MPIer::wait(rs_l, rr_l, rs_r, rr_r);
+        }
     }
 }
 
@@ -288,45 +270,8 @@ int main(int argc, char** argv) {
     for (INTEGER istep(0); istep < Nstep; ++istep) {
         timer::tic();
 
-        // update u_r & u_l values
-        MPIer::Request rs_l, rs_r, rr_l, rr_r;
-        vector<double> send_layer_l, send_layer_r;
-        if (MPIer::size > 1) {
-            send_layer_l.assign(u.begin(), u.begin() + N_per_layer);
-            send_layer_r.assign(u.end() - N_per_layer, u.end());
-
-            if (MPIer::rank == 0) {
-                MPIer::isend(MPIer::rank + 1, send_layer_r, rs_r);
-                MPIer::irecv(MPIer::rank + 1, u_r, rr_r);
-                rs_r.Wait();
-                rr_r.Wait();
-            }
-            else if (MPIer::rank == MPIer::size - 1) {
-                MPIer::isend(MPIer::rank - 1, send_layer_l, rs_l);
-                MPIer::irecv(MPIer::rank - 1, u_l, rr_l);
-                rs_l.Wait();
-                rr_l.Wait();
-            }
-            else {
-                MPIer::isend(MPIer::rank - 1, send_layer_l, rs_l);
-                MPIer::isend(MPIer::rank + 1, send_layer_r, rs_r);
-                MPIer::irecv(MPIer::rank - 1, u_l, rr_l);
-                MPIer::irecv(MPIer::rank + 1, u_r, rr_r);
-                rs_l.Wait();
-                rs_r.Wait();
-                rr_l.Wait();
-                rr_r.Wait();
-            }
-        }
-        else {
-        }
-        ioer::info("rank ", MPIer::rank, " my_batch = ", my_batch);
-        ioer::info("rank ", MPIer::rank, " my_Ntot = ", my_Ntot);
-        ioer::info("rank ", MPIer::rank, " my_idx_ofs = ", my_idx_ofs);
-        ioer::info("rank ", MPIer::rank, " u = ", u);
-        ioer::info("rank ", MPIer::rank, " u_l = ", u_l);
-        ioer::info("rank ", MPIer::rank, " u_r = ", u_r);
-        break;
+        // update u_r, u_l
+        update_ulur(u);
 
         // integrate
         tout = t + dt;
@@ -344,58 +289,4 @@ int main(int argc, char** argv) {
     MPIer::finalize();
     return 0;
 
-    /*
-    // output 
-    ioer::output_t out;
-    out.set_precision(10);
-
-    // mem approx
-    out.info("# Nx = ", Nx);
-    INTEGER nz1 = 7*Nx*Nx*Nx - 6*Nx*Nx;
-    REAL mem = (nz1 + Nx + 1) * 4 + nz1 * 8 + (Ntot * 7) * 4;
-    mem = mem / 1024 / 1024 / 1024;
-    out.info(misc::fmtstring("# approx mem = %.6f GB", mem));
-
-    // init
-    init_ijk_list();
-    init_neigh_list();
-    vector<REAL> u = init_u();
-
-    misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
-
-    const REAL atol(1e-8), rtol(1e-3);
-    ioer::info(misc::fmtstring("# rtol = %.2e, atol = %.2e", rtol, atol));
-
-    INTEGER Nstep(atoi(argv[1]));
-    INTEGER Anastep(20);
-
-    // loop
-    REAL t(0.0), tout(0.0);
-    */
-    for (int istep(0); istep < Nstep; ++istep) {
-        if (istep % Anastep == 0) {
-            out.open(misc::fmtstring("%d.dat", istep / Anastep), ios::out);
-            show_u(u, out);
-            out.close();
-        }
-
-        // output
-        timer::tic();
-
-        tout = t + dt;
-
-        //dvode_sp(u, t, tout, cal_dudt, nullptr, rtol, atol);
-        dvode_sp(u, t, tout, cal_dudt, cal_jac, rtol, atol);
-
-        // apply boundary condition
-        for (INTEGER idx(0); idx < Ntot; ++idx) {
-            if (on_the_boundary(idx)) {
-                u[idx] = 0.0;
-            }
-        }
-        ioer::tabout("# step ", istep, " done. ", timer::toc());
-    }
-
-    MPIer::finalize();
-    return 0;
 }
