@@ -10,7 +10,7 @@
 #include "misc/sparsemat.hpp"
 #include "misc/matrixop_io.hpp"
 #include "misc/label_index_convertor.hpp"
-#include "dvode.hpp"
+#include "ode.hpp"
 
 using namespace std;
 
@@ -19,11 +19,11 @@ using INTEGER = long int;
 using REAL = double;
 
 
-const INTEGER DIM(2);
-const vector<INTEGER> Nx(DIM, 40);
-const vector<REAL> dx(DIM, 0.05);
+const INTEGER DIM(3);
+const vector<INTEGER> Nx(DIM, 15);
+const vector<REAL> dx(DIM, 0.02);
 const vector<REAL> D(DIM, 1.0);
-const REAL dt(0.0001);
+const REAL dt(0.00001);
 const INTEGER Ntot(product(Nx));
 const vector<REAL> Dinvdx2(D / dx / dx);
 
@@ -156,7 +156,14 @@ vector<REAL> init_u()
     return u;
 }
 
-void cal_dudt(const int* /* NEQ */, const REAL* /* t */, const REAL* u, REAL* dudt)
+void cal_dudt(
+        const int* /* NEQ */,
+        const REAL* /* t */, 
+        const REAL* u, 
+        REAL* dudt,
+        double* /* rpar */,
+        int* /* ipar */
+        )
 {
     // calculate dudt
     INTEGER mid, idx_l, idx_r;
@@ -274,19 +281,19 @@ int main(int argc, char** argv) {
     init_neigh_list();
     vector<REAL> u = init_u();
 
-    misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
-
     const REAL atol(1e-8), rtol(1e-3);
     ioer::info(misc::fmtstring("# rtol = %.2e, atol = %.2e", rtol, atol));
 
     INTEGER Nstep(atoi(argv[1]));
-    INTEGER Anastep(20);
+    INTEGER Anastep(atoi(argv[2]));
+    misc::crasher::confirm<>(argc >= 3, "insufficient input para!");
+
 
     // loop
     REAL t(0.0), tout(0.0);
     for (int istep(0); istep < Nstep; ++istep) {
         if (istep % Anastep == 0) {
-            out.open(misc::fmtstring("%d.dat", istep / Anastep), ios::out);
+            out.open(misc::fmtstring("nd_%d.dat", istep / Anastep), ios::out);
             show_u(u, out);
             out.close();
         }
@@ -297,7 +304,9 @@ int main(int argc, char** argv) {
         tout = t + dt;
 
         //dvode_sp(u, t, tout, cal_dudt, nullptr, rtol, atol);
-        dvode_sp(u, t, tout, cal_dudt, cal_jac, rtol, atol);
+        //rkf45(u, t, tout, cal_dudt, rtol, atol);
+        //euler(u, t, tout, cal_dudt);
+        dopri5(u, t, tout, cal_dudt, rtol, atol);
 
         // apply boundary condition
         for (INTEGER idx(0); idx < Ntot; ++idx) {

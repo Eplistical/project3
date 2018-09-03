@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <limits>
 #include <algorithm>
+#include <iterator>
 #include "misc/crasher.hpp"
 #include "misc/ioer.hpp"
 #include "misc/vector.hpp"
@@ -11,7 +12,7 @@
 #include "misc/matrixop_io.hpp"
 #include "misc/label_index_convertor.hpp"
 #include "misc/MPIer.hpp"
-#include "dvode.hpp"
+#include "ode.hpp"
 
 using namespace std;
 
@@ -19,12 +20,11 @@ using BOOL = bool;
 using INTEGER = long int;
 using REAL = double;
 
-
-const INTEGER DIM(2);
-const vector<INTEGER> Nx(DIM, 4);
-const vector<REAL> dx(DIM, 0.05);
+const INTEGER DIM(3);
+const vector<INTEGER> Nx(DIM, 15);
+const vector<REAL> dx(DIM, 0.02);
 const vector<REAL> D(DIM, 1.0);
-const REAL dt(0.0001);
+const REAL dt(0.00001);
 const vector<REAL> Dinvdx2(D / dx / dx);
 const INTEGER Ntot(product(Nx));
 
@@ -131,28 +131,59 @@ vector<REAL> init_u()
     return u;
 }
 
-void cal_dudt(const int* /* NEQ */, const REAL* /* t */, const REAL* u, REAL* dudt)
+void cal_dudt(
+        const int* /* NEQ */, 
+        const REAL* /* t */, 
+        const REAL* u, 
+        REAL* dudt,
+        double* /* rpar */,
+        int* /* ipar */
+        )
 {
-    //TODO: modify to MPI version
-    // calculate dudt
-    INTEGER mid, idx_l, idx_r;
-    REAL uidx;
-    for (INTEGER idx(0); idx < Ntot; ++idx) {
-        mid = DIM + idx * maxNneigh;
+    INTEGER mid, idx_l, idx_r, idx_wall;
 
+    for (INTEGER idx(0); idx < my_Ntot; ++idx) {
+        mid = DIM + (idx + my_idx_ofs) * maxNneigh;
         dudt[idx] = 0.0;
+
         for (INTEGER d(0); d < DIM; ++d) {
             idx_l = neigh_list[mid - d - 1];
+            if (idx_l != -1) idx_l -= my_idx_ofs;
             idx_r = neigh_list[mid + d + 1];
+            if (idx_r != -1) idx_r -= my_idx_ofs;
 
-            if (idx_l == -1) {
-               dudt[idx] += (u[idx_r] - u[idx]) * Dinvdx2[d];
-            }
-            else if (idx_r == -1) {
-               dudt[idx] += (u[idx_l] - u[idx]) * Dinvdx2[d];
+            idx_wall = idx % N_per_layer;
+
+            if ( (d == DIM - 1) and ( (idx < N_per_layer) or ( idx > (my_Ntot - N_per_layer) ) ) ) {
+                if (idx < N_per_layer) {
+                    // first layer, last dimension
+                    if (not u_l.empty()) {
+                        dudt[idx] += (u_l[idx_wall] + u[idx_r] - 2 * u[idx]) * Dinvdx2[d];
+                    }
+                    else {
+                        dudt[idx] += (u[idx_r] - u[idx]) * Dinvdx2[d];
+                    }
+                }
+                else {
+                    // last layer, last dimension
+                    if (not u_r.empty()) {
+                        dudt[idx] += (u_r[idx_wall] + u[idx_l] - 2 * u[idx]) * Dinvdx2[d];
+                    }
+                    else {
+                        dudt[idx] += (u[idx_l] - u[idx]) * Dinvdx2[d];
+                    }
+                }
             }
             else {
-               dudt[idx] += (u[idx_l] + u[idx_r] - 2 * u[idx]) * Dinvdx2[d];
+                if (idx_l == -1) {
+                    dudt[idx] += (u[idx_r] - u[idx]) * Dinvdx2[d];
+                }
+                else if (idx_r == -1) {
+                    dudt[idx] += (u[idx_l] - u[idx]) * Dinvdx2[d];
+                }
+                else {
+                    dudt[idx] += (u[idx_l] + u[idx_r] - 2 * u[idx]) * Dinvdx2[d];
+                }
             }
         }
     }
@@ -212,9 +243,21 @@ void update_ulur(const vector<REAL>& u) {
     MPIer::Request rs_l, rs_r, rr_l, rr_r;
     vector<REAL> send_layer_l, send_layer_r;
     if (MPIer::size > 1) {
-        send_layer_l.assign(u.begin(), u.begin() + N_per_layer);
-        send_layer_r.assign(u.end() - N_per_layer, u.end());
+        // assign info to send
+        if (MPIer::rank == 0) {
+            send_layer_l.clear();
+            send_layer_r.assign(u.end() - N_per_layer, u.end());
+        }
+        else if (MPIer::rank == MPIer::size - 1) {
+            send_layer_l.assign(u.begin(), u.begin() + N_per_layer);
+            send_layer_r.clear();
+        }
+        else {
+            send_layer_l.assign(u.begin(), u.begin() + N_per_layer);
+            send_layer_r.assign(u.end() - N_per_layer, u.end());
+        }
 
+        // send/recv
         if (MPIer::rank == 0) {
             MPIer::isend(MPIer::rank + 1, send_layer_r, rs_r);
             MPIer::irecv(MPIer::rank + 1, u_r, rr_r);
@@ -237,12 +280,13 @@ void update_ulur(const vector<REAL>& u) {
 
 int main(int argc, char** argv) {
     MPIer::setup();
+    misc::crasher::confirm<>(MPIer::size > 1, "MPI size must > 1!");
+
     // output 
     ioer::output_t out;
     out.set_precision(10);
 
     // mem approx
-    out.info("# Nx = ", Nx);
 
     // work batch
     my_batch = MPIer::assign_job(Nx[DIM-1]);
@@ -253,29 +297,61 @@ int main(int argc, char** argv) {
     init_ijk_list();
     init_neigh_list();
     vector<REAL> u = init_u();
-    u_l.resize(N_per_layer);
-    u_r.resize(N_per_layer);
-
-    //misc::crasher::confirm<>(argc >= 2, "insufficient input para!");
 
     const REAL atol(1e-8), rtol(1e-3);
-    ioer::info(misc::fmtstring("# rtol = %.2e, atol = %.2e", rtol, atol));
 
-    //INTEGER Nstep(atoi(argv[1]));
-    const INTEGER Nstep(21);
-    const INTEGER Anastep(20);
+    // output header
+    if (MPIer::master) {
+        out.info("# Nx = ", Nx);
+        out.info(misc::fmtstring("# rtol = %.2e, atol = %.2e", rtol, atol));
+    }
+
+    const INTEGER Nstep(atoi(argv[1]));
+    const INTEGER Anastep(atoi(argv[2]));
+    if (MPIer::master) {
+        misc::crasher::confirm<>(argc >= 3, "insufficient input para!");
+    }
+
+    vector<REAL> u_buf, u_all;
 
     // loop
     REAL t(0.0), tout(0.0);
     for (INTEGER istep(0); istep < Nstep; ++istep) {
-        timer::tic();
+        // output
+        if (istep % Anastep == 0) {
+            if (MPIer::master) {
+                u_all.assign(u.begin(), u.end());
+            }
 
-        // update u_r, u_l
+            for (int r(1); r < MPIer::size; ++r) {
+                if (MPIer::rank == r) {
+                    MPIer::send(0, u);
+                }
+                else if (MPIer::master) {
+                    MPIer::recv(r, u_buf);
+                    u_all.insert(u_all.end(), u_buf.begin(), u_buf.end());
+                }
+                MPIer::barrier();
+            }
+
+            if (MPIer::master) {
+                out.open(misc::fmtstring("mpind_%d.dat", istep / Anastep), ios::out);
+                show_u(u_all, out);
+                out.close();
+            }
+        }
+
+        if (MPIer::master) {
+            timer::tic();
+        }
+
+        // integrate t -> t+dt
         update_ulur(u);
-
-        // integrate
         tout = t + dt;
-        dvode_sp(u, t, tout, cal_dudt, nullptr, rtol, atol);
+        //dvode_sp(u, t, tout, cal_dudt, nullptr, rtol, atol);
+        //rkf45(u, t, tout, cal_dudt, rtol, atol);
+        //euler(u, t, tout, cal_dudt);
+        dopri5(u, t, tout, cal_dudt, rtol, atol);
 
         // boundary condition
         for (INTEGER idx(0); idx < my_Ntot; ++idx) {
@@ -283,7 +359,10 @@ int main(int argc, char** argv) {
                 u[idx] = 0.0;
             }
         }
-        ioer::tabout("# step ", istep, " done. ", timer::toc());
+
+        if (MPIer::master) {
+            ioer::tabout("# step ", istep, " done. ", timer::toc());
+        }
     }
 
     MPIer::finalize();
